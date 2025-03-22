@@ -35,7 +35,7 @@ class EarlyStopping():
         self.best_score = None  # record the best score
         self.best_epoch = 0 # record the best epoch
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_loss_min = np.inf
         self.delta = delta
         self.path = os.path.join(path, "pytorch_model.bin")
         self.trace_func = trace_func
@@ -94,7 +94,7 @@ class EarlyStoppingNew():
         self.best_score = None  # record the best score
         self.best_epoch = 0 # record the best epoch
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_loss_min = np.inf
         self.delta = delta
         self.path = os.path.join(path, "pytorch_model.bin")
         self.trace_func = trace_func
