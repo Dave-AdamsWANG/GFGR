@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 from tqdm import tqdm
-
+import math
 
 def set_seed(seed):
     '''Fix all of random seed for reproducible training'''
@@ -205,7 +205,43 @@ def random_neq2(l, r, s=[], neg_num=1):
 
     return np.array(neg_list)
 
+def ndcg_score(topk_results):
+    """
+    Since we apply leave-one-out, each user only have one ground truth item, so the idcg would be 1.0
+    """
+    one_ndcg = 0.0
+    for i in range(len(topk_results)):
+        one_ndcg += topk_results[i] / math.log(i + 2, 2)
+    return one_ndcg
 
+
+
+def metric_report(pred_rank, target_items, ks=[1, 5, 10, 20]):
+    res_dict = {}
+    results = []
+    num_samples = len(pred_rank)
+    for i in range(num_samples):
+        one_results = []
+        for pred_j in pred_rank[i]:
+            if pred_j == target_items[i]:
+                one_results.append(1)
+            else:
+                one_results.append(0)
+        results.append(one_results)
+    for k in ks:
+        ndcg_list = []
+        hit_list = []
+        for i in range(num_samples):
+            pred = pred_rank[i][:k]
+            target = target_items[i]
+            y_true = np.isin(pred, target).astype(int)
+            ndcg = ndcg_score(y_true)
+            hit = 1 if np.sum(y_true) > 0 else 0
+            ndcg_list.append(ndcg)
+            hit_list.append(hit)
+        res_dict[f'NDCG@{k}'] = np.mean(ndcg_list)
+        res_dict[f'HitRate@{k}'] = np.mean(hit_list)
+    return res_dict
 
 def metric_report(data_rank, topk=10):
 

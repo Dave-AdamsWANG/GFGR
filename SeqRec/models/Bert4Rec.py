@@ -136,10 +136,10 @@ class Bert4Rec(BaseSeqModel):
         log_feats = self.log2feats(log_seqs[:, 1:].long(), positions[:, 1:].long()) # user_ids hasn't been used yet
 
         final_feat = log_feats[:, -1, :] # only use last QKV classifier, a waste
-        item_embs = self._get_embedding(item_indices) # (U, I, C)
-        logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
+        # item_embs = self._get_embedding(item_indices) # (U, I, C)
+        # logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
 
-        return logits # preds # (U, I)
+        return final_feat # preds # (U, I)
 
 
 

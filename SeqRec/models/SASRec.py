@@ -138,10 +138,10 @@ class SASRec(BaseSeqModel):
         '''Used to predict the score of item_indices given log_seqs'''
         log_feats = self.log2feats(seq, positions) # user_ids hasn't been used yet
         final_feat = log_feats[:, -1, :] # only use last QKV classifier, a waste
-        item_embs = self._get_embedding(item_indices) # (U, I, C)
-        logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
+        #item_embs = self._get_embedding(item_indices) # (U, I, C)
+        #logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
 
-        return logits # preds # (U, I)
+        return final_feat # preds # (U, I)
     
 
     def get_user_emb(self,
