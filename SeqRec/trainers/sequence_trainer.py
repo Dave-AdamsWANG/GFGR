@@ -105,12 +105,12 @@ class SeqTrainer(Trainer):
                 inputs = self._prepare_eval_inputs(batch)
                 seq_len = torch.cat([seq_len, torch.sum(inputs["seq"]>0, dim=1)])
                 target_items = torch.cat([target_items, inputs["pos"]])
-                #inputs["item_indices"] = torch.cat([inputs["pos"].unsqueeze(1), inputs["neg"]], dim=1)
+                inputs["item_indices"] = torch.cat([inputs["pos"].unsqueeze(1), inputs["neg"]], dim=1)
                 pred_logits = -self.model.predict(**inputs)
                 # final_feat = self.model.predict(**inputs)
                 # _, topk_index = index_flat.search(final_feat.cpu().numpy(), k=20)
                 # per_pred_rank = torch.argsort(torch.tensor(topk_index))#[:, 0]
-                per_pred_rank = torch.argsort(pred_logits).gather(1, inputs["pos"].unsqueeze(1)).squeeze(1)
+                per_pred_rank = torch.argsort(torch.argsort(pred_logits))[:,0]#.gather(1, inputs["pos"].unsqueeze(1)).squeeze(1)
                 pred_rank = torch.cat([pred_rank, per_pred_rank]) # B, 20
 
         self.logger.info('')
