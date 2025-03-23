@@ -110,7 +110,7 @@ class SeqTrainer(Trainer):
                 # final_feat = self.model.predict(**inputs)
                 # _, topk_index = index_flat.search(final_feat.cpu().numpy(), k=20)
                 # per_pred_rank = torch.argsort(torch.tensor(topk_index))#[:, 0]
-                per_pred_rank = torch.argsort(pred_logits).gather(1, inputs["pos"]).squeeze(1)
+                per_pred_rank = torch.argsort(pred_logits).gather(1, inputs["pos"].unsqueeze(1)).squeeze(1)
                 pred_rank = torch.cat([pred_rank, per_pred_rank]) # B, 20
 
         self.logger.info('')
@@ -191,61 +191,3 @@ class SeqTrainer(Trainer):
 
 
     
-    def test_group(self):
-
-        print('')
-        self.logger.info("\n----------------------------------------------------------------")
-        self.logger.info("********** Running Group test **********")
-        desc = 'Testing'
-        model_state_dict = torch.load(os.path.join(self.args.output_dir, 'pytorch_model.bin'))
-        self.model.load_state_dict(model_state_dict['state_dict'])
-        self.model.to(self.device)
-        test_loader = self.test_loader
-        
-        self.model.eval()
-        pred_rank = torch.empty(0).to(self.device)
-        seq_len = torch.empty(0).to(self.device)
-        target_items = torch.empty(0).to(self.device)
-        with torch.no_grad():
-            #construct realshow embedding
-            faiss_obj = faiss.StandardGpuResources()
-            flat_config = faiss.GpuIndexFlatConfig()
-            flat_config.device = 0
-            index_flat = faiss.GpuIndexFlatIP(faiss_obj, 8, flat_config)
-            index_flat.add(self.model.item_emb.weight.cpu().numpy()[1:-1])
-
-            for batch in tqdm(test_loader, desc=desc):
-                batch = tuple(t.to(self.device) for t in batch)
-                inputs = self._prepare_eval_inputs(batch)
-                seq_len = torch.cat([seq_len, torch.sum(inputs["seq"]>0, dim=1)])
-                target_items = torch.cat([target_items, inputs["pos"]])
-                inputs["item_indices"] = torch.cat([inputs["pos"].unsqueeze(1), inputs["neg"]], dim=1)
-                # pred_logits = -self.model.predict(**inputs)
-                final_feat = self.model.predict(**inputs)
-                _, topk_index = index_flat.search(final_feat.cpu().numpy(), k=20)
-                # per_pred_rank = torch.argsort(torch.tensor(topk_index))#[:, 0]
-                pred_rank = torch.cat([pred_rank, topk_index]) # B, 20
-
-        self.logger.info('')
-        res_dict = metric_report(pred_rank.detach().cpu().numpy(),target_items.detach().cpu().numpy(), [1, 5, 10, 20])
-        # res_len_dict = metric_len_report(pred_rank.detach().cpu().numpy(), seq_len.detach().cpu().numpy(), aug_len=self.args.aug_seq_len, args=self.args)
-        # res_pop_dict = metric_pop_report(pred_rank.detach().cpu().numpy(), self.item_pop, target_items.detach().cpu().numpy(), args=self.args)
-        hr_len, ndcg_len, count_len = metric_len_5group(pred_rank.detach().cpu().numpy(), seq_len.detach().cpu().numpy(), [5, 10, 15, 20])
-        hr_pop, ndcg_pop, count_pop = metric_pop_5group(pred_rank.detach().cpu().numpy(), self.item_pop,  target_items.detach().cpu().numpy(), [5, 10, 20, 40])
-
-        self.logger.info("Overall Performance:")
-        for k, v in res_dict.items():
-            self.logger.info('\t %s: %.5f' % (k, v))
-
-        self.logger.info("User Group Performance:")
-        for i, (hr, ndcg) in enumerate(zip(hr_len, ndcg_len)):
-            self.logger.info('The %d Group: HR %.4f, NDCG %.4f' % (i, hr, ndcg))
-        self.logger.info("Item Group Performance:")
-        for i, (hr, ndcg) in enumerate(zip(hr_pop, ndcg_pop)):
-            self.logger.info('The %d Group: HR %.4f, NDCG %.4f' % (i, hr, ndcg))
-        
-        
-        return res_dict
-    
-
-
