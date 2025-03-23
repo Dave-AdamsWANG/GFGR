@@ -31,15 +31,15 @@ class SeqDataset(Dataset):
         inter = self.data[index]
         non_neg = copy.deepcopy(inter)
         pos = inter[-1]
-        all_item = list(range(1, self.item_num + 1))
-        all_item.remove(pos)
-        neg = np.asarray(all_item)
-        # neg = []
+        # all_item = list(range(1, self.item_num + 1))
+        # all_item.remove(pos)
+        # neg = np.asarray(all_item)
+        neg = []
         # for _ in range(self.neg_num):
         #     per_neg = random_neq(1, self.item_num+1, non_neg)
         #     neg.append(per_neg)
         #     non_neg.append(per_neg)
-        # neg = np.array(neg)
+        neg = np.array(neg)
         #neg = random_neq(1, self.item_num+1, inter)
         
         seq = np.zeros([self.max_len], dtype=np.int32)
