@@ -4,7 +4,7 @@ import copy
 import random
 import numpy as np
 from torch.utils.data import Dataset
-from utils.utils import random_neq
+from utils.utils import random_neq, random_neq2
 import pickle
 
 
@@ -39,9 +39,10 @@ class SeqDataset(Dataset):
         #     per_neg = random_neq(1, self.item_num+1, non_neg)
         #     neg.append(per_neg)
         #     non_neg.append(per_neg)
-        neg = np.array(neg)
-        #neg = random_neq(1, self.item_num+1, inter)
-        
+        # neg = np.array(neg)
+        neg = random_neq2(1, self.item_num+1, non_neg,neg_num=self.neg_num)
+        mask_item = self.item_num - (len(neg))
+        neg = np.concatenate([neg,np.zeros([mask_item], dtype=np.int32)])
         seq = np.zeros([self.max_len], dtype=np.int32)
         idx = self.max_len - 1
         for i in reversed(inter[:-1]):

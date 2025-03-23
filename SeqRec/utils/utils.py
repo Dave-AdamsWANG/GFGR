@@ -201,6 +201,8 @@ def random_neq(l, r, s=[]):    # 在l-r之间随机采样一个数，这个数�
 def random_neq2(l, r, s=[], neg_num=1):
 
     candidates = set(range(l, r)) - set(s)
+    if neg_num > len(candidates):
+        return np.array(list(candidates))
     neg_list = random.sample(list(candidates), neg_num)
 
     return np.array(neg_list)

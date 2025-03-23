@@ -43,7 +43,7 @@ class Generator(object):
         user_valid = {}
         user_test = {}
         # assume user/item index starting from 1
-        with open('../data/%s/%s.json' % (self.dataset, self.inter_file), 'r') as f:
+        with open('/root/autodl-tmp/data/%s/%s.json' % (self.dataset, self.inter_file), 'r') as f:
             User = json.load(f)
         self.user_num = max(int(key) for key in User.keys())
         self.item_num = max(max(value['items']) for value in User.values())
@@ -99,10 +99,10 @@ class Generator(object):
         else:
             eval_dataset = concat_data([self.train, self.valid])
 
-        self.eval_dataset = SeqDataset(eval_dataset, self.item_num, self.args.max_len, self.args.test_neg)
+        self.eval_dataset = SeqDataset(eval_dataset, self.item_num, self.args.max_len, self.item_num)
         eval_dataloader = DataLoader(self.eval_dataset,
                                     sampler=SequentialSampler(self.eval_dataset),
-                                    batch_size=100,
+                                    batch_size=200,
                                     num_workers=self.num_workers)
         
         return eval_dataloader
