@@ -87,16 +87,16 @@ class GRU4Rec(BaseSeqModel):
 
     def predict(self, 
                 seq, 
-                item_indices, 
+                #item_indices, 
                 positions,
                 **kwargs): # for inference
         '''Used to predict the score of item_indices given log_seqs'''
         log_feats = self.log2feats(seq)
         final_feat = log_feats[:, -1, :]
         #item_embs = self._get_embedding(item_indices) # (U, I, C)
-        # logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
+        logits = self.item_emb.weight.unsqueeze(0).matmul(final_feat.unsqueeze(-1)).squeeze(-1)
 
-        return final_feat#logits # preds # (U, I)
+        return logits# final_feat#logits # preds # (U, I)
 
 
 

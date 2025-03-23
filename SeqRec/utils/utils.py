@@ -216,46 +216,65 @@ def ndcg_score(topk_results):
 
 
 
-def metric_report(pred_rank, target_items, ks=[1, 5, 10, 20]):
-    res_dict = {}
-    results = []
-    num_samples = len(pred_rank)
-    for i in range(num_samples):
-        one_results = []
-        for pred_j in pred_rank[i]:
-            if pred_j == target_items[i]:
-                one_results.append(1)
-            else:
-                one_results.append(0)
-        results.append(one_results)
-    for k in ks:
-        ndcg_list = []
-        hit_list = []
-        for i in range(num_samples):
-            pred = pred_rank[i][:k]
-            target = target_items[i]
-            y_true = np.isin(pred, target).astype(int)
-            ndcg = ndcg_score(y_true)
-            hit = 1 if np.sum(y_true) > 0 else 0
-            ndcg_list.append(ndcg)
-            hit_list.append(hit)
-        res_dict[f'NDCG@{k}'] = np.mean(ndcg_list)
-        res_dict[f'HitRate@{k}'] = np.mean(hit_list)
-    return res_dict
+# def metric_report(pred_rank, target_items, ks=[1, 5, 10, 20]):
+#     res_dict = {}
+#     results = []
+#     num_samples = len(pred_rank)
+#     for i in range(num_samples):
+#         one_results = []
+#         for pred_j in pred_rank[i]:
+#             if pred_j == target_items[i]:
+#                 one_results.append(1)
+#             else:
+#                 one_results.append(0)
+#         results.append(one_results)
+#     for k in ks:
+#         ndcg_list = []
+#         hit_list = []
+#         for i in range(num_samples):
+#             pred = pred_rank[i][:k]
+#             target = target_items[i]
+#             y_true = np.isin(pred, target).astype(int)
+#             ndcg = ndcg_score(y_true)
+#             hit = 1 if np.sum(y_true) > 0 else 0
+#             ndcg_list.append(ndcg)
+#             hit_list.append(hit)
+#         res_dict[f'NDCG@{k}'] = np.mean(ndcg_list)
+#         res_dict[f'HR@{k}'] = np.mean(hit_list)
+#     return res_dict
 
-def metric_report(data_rank, topk=10):
+# def metric_report(data_rank, topk=10):
 
-    NDCG, HT = 0, 0
+#     NDCG, HT = 0, 0
     
-    for rank in data_rank:
+#     for rank in data_rank:
 
-        if rank < topk:
-            NDCG += 1 / np.log2(rank + 2)
-            HT += 1
+#         if rank < topk:
+#             NDCG += 1 / np.log2(rank + 2)
+#             HT += 1
 
-    return {'NDCG@10': NDCG / len(data_rank),
-            'HR@10': HT / len(data_rank)}
+#     return {'NDCG@10': NDCG / len(data_rank),
+#             'HR@10': HT / len(data_rank)}
 
+def metric_report(data_rank, topk=[1, 5, 10, 20]):
+    ndcg_dict = {}
+    hr_dict = {}
+    num_samples = len(data_rank)
+
+    # 对每个 topk 值进行计算
+    for k in topk:
+        ndcg = 0
+        hr = 0
+        for rank in data_rank:
+            if rank < k:
+                ndcg += 1 / np.log2(rank + 2)
+                hr += 1
+        ndcg_dict[f'NDCG@{k}'] = ndcg / num_samples
+        hr_dict[f'HR@{k}'] = hr / num_samples
+
+    # 合并 NDCG 和 HR 的结果
+    result = {**ndcg_dict, **hr_dict}
+    return result
 
 
 # def metric_len_report(data_rank, data_len, topk=10, aug_len=0, args=None):
