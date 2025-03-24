@@ -125,9 +125,9 @@ class Trainer(object):
         self.logger.info("\n----------------------------------------------------------------")
         self.logger.info("********** Running training **********")
         self.logger.info("  Batch size = %d", self.args.train_batch_size)
-        res_list = []
+        res_list = {}
         train_time = []
-
+        eval_step = 3
         for epoch in trange(self.start_epoch, self.start_epoch + int(self.args.num_train_epochs), desc="Epoch"):
 
             t = self._train_one_epoch(epoch)
@@ -135,10 +135,11 @@ class Trainer(object):
             train_time.append(t)
 
             # evluate on validation per 20 epochs
-            if (epoch % 1) == 0:
-                
+            if (epoch % eval_step) == 0:
+                if epoch % 10==1 and eval_step>1:
+                    eval_step =eval_step-1
                 metric_dict = self.eval(epoch=epoch)
-                res_list.append(metric_dict)
+                res_list.update({epoch:metric_dict})
                 #self.scheduler.step()
                 self.stopper(metric_dict[self.watch_metric], epoch, model_to_save, self.optimizer, self.scheduler)
 

@@ -29,7 +29,7 @@ class SeqDataset(Dataset):
     def __getitem__(self, index):
 
         inter = self.data[index]
-        non_neg = copy.deepcopy(inter)
+        non_neg = copy.deepcopy(inter[-2*self.max_len:])
         pos = inter[-1]
         # all_item = list(range(1, self.item_num + 1))
         # all_item.remove(pos)

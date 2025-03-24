@@ -109,7 +109,7 @@ class EarlyStoppingNew():
             self.best_epoch = epoch
             self.save_checkpoint(score, model, optimizer, scheduler, epoch)
         elif score <= self.best_score + self.delta:
-            self.counter += 1
+            self.counter += epoch-self.best_epoch
             #self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
