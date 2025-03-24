@@ -12,6 +12,7 @@ class Trainer(object):
     def __init__(self, args, logger, writer, device, generator):
 
         self.args = args
+        self.warm_epochs = args.warm_epochs
         self.logger = logger
         self.writer = writer
         self.device = device
@@ -135,7 +136,7 @@ class Trainer(object):
             train_time.append(t)
 
             # evluate on validation per 20 epochs
-            if (epoch % eval_step) == 0:
+            if (epoch % eval_step) == 0 and epoch > self.warm_epochs:
                 if epoch % 10==1 and eval_step>1:
                     eval_step =eval_step-1
                 metric_dict = self.eval(epoch=epoch)

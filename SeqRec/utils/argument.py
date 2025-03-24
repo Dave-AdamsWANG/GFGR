@@ -191,6 +191,10 @@ def get_train_arguments(parser):
                         default=100,
                         type=float,
                         help="Total number of training epochs to perform.")
+    parser.add_argument("--warm_epochs",
+                        default=20,
+                        type=float,
+                        help="Total number of training epochs to perform.")
     parser.add_argument("--lr_dc_step",
                         default=1000,
                         type=int,

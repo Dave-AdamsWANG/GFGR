@@ -41,8 +41,9 @@ class SeqDataset(Dataset):
         #     non_neg.append(per_neg)
         # neg = np.array(neg)
         neg = random_neq2(1, self.item_num+1, non_neg,neg_num=self.neg_num)
-        mask_item = self.item_num - (len(neg))
-        neg = np.concatenate([neg,np.zeros([mask_item], dtype=np.int32)])
+        if self.neg_num > 100:
+            mask_item = self.item_num - (len(neg))
+            neg = np.concatenate([neg,np.zeros([mask_item], dtype=np.int32)])
         seq = np.zeros([self.max_len], dtype=np.int32)
         idx = self.max_len - 1
         for i in reversed(inter[:-1]):
