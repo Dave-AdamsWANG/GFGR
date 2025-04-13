@@ -43,13 +43,15 @@ class SeqTrainer(Trainer):
 
         self.model.train()
         prog_iter = tqdm(self.train_loader, leave=False, desc='Training')
-
+        t0 = time.time()
         for batch in prog_iter:
-
+            t1 = time.time()
+            print(t1-t0)
             batch = tuple(t.long().to(self.device) for t in batch)
 
             train_start = time.time()
             inputs = self._prepare_train_inputs(batch)
+            print(inputs)
             loss = self.model(**inputs)
             loss.backward()
 
@@ -65,6 +67,7 @@ class SeqTrainer(Trainer):
 
             train_end = time.time()
             train_time.append(train_end-train_start)
+            t0 = time.time()
 
         self.writer.add_scalar('train/loss', tr_loss / nb_tr_steps, epoch)
 
