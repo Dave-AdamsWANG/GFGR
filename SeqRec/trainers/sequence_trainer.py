@@ -3,11 +3,11 @@ import os
 import time
 import pickle
 import torch
-import faiss
+# import faiss
 import numpy as np
 from tqdm import tqdm
 from trainers.trainer import Trainer
-from models.SASRec import SASRec_seq
+from models.SASRec import SASRec,SASRec_seq
 from models.Bert4Rec import Bert4Rec
 from models.GRU4Rec import GRU4Rec
 from utils.utils import metric_report, metric_len_report, record_csv, metric_pop_report
@@ -24,7 +24,7 @@ class SeqTrainer(Trainer):
     def _create_model(self):
         '''create your model'''
         if self.args.model_name == 'sasrec_seq':
-            self.model = SASRec_seq(self.user_num, self.item_num, self.device, self.args)
+            self.model = SASRec(self.user_num, self.item_num, self.device, self.args)
         elif self.args.model_name == 'bert4rec':
             self.model = Bert4Rec(self.user_num, self.item_num, self.device, self.args)
         elif self.args.model_name == 'gru4rec':

@@ -123,8 +123,8 @@ class SASRec(BaseSeqModel):
         neg_logits = torch.mul(log_feats, neg_embs).sum(dim=-1) # (bs, neg_num)
 
         pos_labels, neg_labels = torch.ones(pos_logits.shape, device=self.dev), torch.zeros(neg_logits.shape, device=self.dev)
-        indices = (pos != 0)    # do not calculate the padding units
-        pos_loss, neg_loss = self.loss_func(pos_logits[indices], pos_labels[indices]), self.loss_func(neg_logits[indices], neg_labels[indices])
+        # indices = (pos != 0)    # do not calculate the padding units
+        pos_loss, neg_loss = self.loss_func(pos_logits, pos_labels), self.loss_func(neg_logits, neg_labels)
         loss = pos_loss + neg_loss
 
         return loss # loss
