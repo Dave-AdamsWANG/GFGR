@@ -135,7 +135,7 @@ class SeqRecDataset(BaseDataset):
 
     def _load_data(self):
 
-        with open(os.path.join(self.data_path,"inter_seq.json"), 'r') as f:
+        with open(os.path.join(self.data_path,f"{self.dataset}.inter.json"), 'r') as f:
             self.inters = json.load(f)
         with open(os.path.join(self.data_path, self.dataset + self.index_file), 'r') as f:
             self.indices = json.load(f)
@@ -144,7 +144,7 @@ class SeqRecDataset(BaseDataset):
 
         self.remapped_inters = dict()
         for uid, items in self.inters.items():
-            new_items = ["".join(self.indices[str(i-1)]) for i in items['items']] 
+            new_items = ["".join(self.indices[str(i)]) for i in items] 
             self.remapped_inters[uid] = new_items
 
 

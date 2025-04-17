@@ -43,10 +43,10 @@ class Generator(object):
         user_valid = {}
         user_test = {}
         # assume user/item index starting from 1
-        with open('/root/autodl-tmp/data/%s/%s.json' % (self.dataset, self.inter_file), 'r') as f:
+        with open(f'/root/LETTER/data/{self.dataset}/{self.dataset}.inter.json', 'r') as f:
             User = json.load(f)
         self.user_num = max(int(key) for key in User.keys())
-        self.item_num = max(max(value['items']) for value in User.values())
+        self.item_num = max(max(value) for value in User.values())
         # for line in f:  # use a dict to save all seqeuces of each user
         #     u, i = line.rstrip().split(' ')
         #     u = int(u)
@@ -61,15 +61,15 @@ class Generator(object):
             nfeedback = len(User[user]) - self.args.aug_seq_len
             #nfeedback = len(User[user])
             if nfeedback < 3:
-                user_train[user] = User[user]['items']
+                user_train[user] = User[user]
                 user_valid[user] = []
                 user_test[user] = []
             else:
-                user_train[user] = User[user]['items'][:-2]
+                user_train[user] = User[user][:-2]
                 user_valid[user] = []
-                user_valid[user].append(User[user]['items'][-2])
+                user_valid[user].append(User[user][-2])
                 user_test[user] = []
-                user_test[user].append(User[user]['items'][-1])
+                user_test[user].append(User[user][-1])
         
         self.train = user_train
         self.valid = user_valid

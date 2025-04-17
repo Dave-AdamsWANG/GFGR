@@ -16,7 +16,7 @@ def get_main_arguments(parser):
                         help="model name")
     parser.add_argument("--dataset", 
                         default="yelp", 
-                        choices=["yelp", "fashion", "beauty", "toys", "music" # preprocess by myself
+                        choices=["Instruments","Yelp","Beauty","yelp", "fashion", "beauty", "toys", "music" # preprocess by myself
                                 ], 
                         help="Choose the dataset")
     parser.add_argument("--inter_file",
