@@ -3,6 +3,9 @@ from transformers.models.t5.modeling_t5 import (
     T5Stack, T5Block, T5LayerNorm, T5LayerSelfAttention, T5LayerFF, T5LayerCrossAttention,
     T5PreTrainedModel, T5ForConditionalGeneration
 )
+from models.SASRec import SASRec,SASRec_seq
+from models.Bert4Rec import Bert4Rec
+from models.GRU4Rec import GRU4Rec
 import copy
 import torch
 import time
@@ -68,6 +71,9 @@ class LETTER(T5ForConditionalGeneration):
         return_dict=None,
         reduce_loss=False,
 
+        positions=None, 
+        origin_item=None,
+        origin_inters=None,
         return_hidden_state=False,
         cal_loss=True,
         **kwargs,
@@ -159,7 +165,7 @@ class LETTER(T5ForConditionalGeneration):
         if cal_loss:
             loss = self.total_loss(lm_logits, labels, decoder_input_ids)
             if hasattr(self, 'gfn'):
-                loss += self.gfn_weight*self.gfn_loss(input_ids,attention_mask,decoder_outputs.hidden_states[-1],labels)
+                loss += self.gfn_weight*self.gfn_loss(input_ids,attention_mask,labels,origin_inters,positions,origin_item)
 
         # ------------------------------------------
 
@@ -234,7 +240,7 @@ class LETTER(T5ForConditionalGeneration):
         # print(batched_probs.shape)
         return batched_probs, batched_output.decoder_hidden_states
 
-    def gfn_init_(self,prefix_allowed_tokens, neg_num=1,b_p=0.5,b_r=0.5,b_z=1.0,b_f=1.0,type='tb',gfn_weight=0.1):
+    def gfn_init_(self,prefix_allowed_tokens, neg_num=1,b_p=0.5,b_r=0.5,b_z=1.0,b_f=1.0,type='tb',gfn_weight=0.1,collab_model_name=None,collab_model_path=None):
         self.gfn=True
         self.prefix_allowed_tokens=prefix_allowed_tokens
         self.gfn_flow_estimator = nn.Sequential(nn.Linear(self.lm_head.in_features, 1, bias=False),nn.ReLU()).to(self.device)
@@ -245,15 +251,21 @@ class LETTER(T5ForConditionalGeneration):
         self.gfn_b_p = nn.Parameter(torch.tensor(b_p,device=self.device))
         self.gfn_weight=gfn_weight
         self.gfn_type=type 
+        if collab_model_path: 
+            self.collab_model_name=collab_model_name
+            self.collab_model_path=collab_model_path
+            self._create_collab_model()
+        else: 
+            self.collab_model=None
         # for name, param in self.named_parameters():
         #     if 'gfn' in name:
         #         param.requires_grad = True
         #     else:
         #         param.requires_grad = False
 
-    def gfn_loss(self,input_ids,attention_mask,hidden_states,labels):
+    def gfn_loss(self,input_ids,attention_mask,labels,origin_inters,positions,origin_item):
         t0 = time.time()
-        actions, reward = self.in_batch_negative_sampling(labels,self.gfn_neg_num+1) # B,N,L; B,N
+        actions, reward = self.in_batch_negative_sampling(labels,origin_inters,positions,origin_item,self.gfn_neg_num+1) # B,N,L; B,N
         t1 = time.time()
         prob_F, hd = self.forward_prob(input_ids,attention_mask,actions) # B*N,L
         t2 = time.time()
@@ -273,18 +285,46 @@ class LETTER(T5ForConditionalGeneration):
         else:
             raise NotImplementedError
         
-    @staticmethod
-    def in_batch_negative_sampling(labels, N):
+    def in_batch_negative_sampling(self,labels,origin_inters,positions,origin_item, N):
         B, L = labels.shape
         if B<=N:
             N=B
-        actions = torch.zeros((B, N, L), dtype=labels.dtype, device=labels.device)
+        actions = torch.zeros((B, N, L), dtype=labels.dtype, device=labels.device) 
         actions[:, 0, :] = labels
-        reward = torch.tensor([1]+[0]*(N-1),device=labels.device).unsqueeze(0).repeat_interleave(repeats=B,dim=0) # B,N
+        reward = torch.tensor([1]+[0]*(N-1),device=labels.device,dtype=torch.float).unsqueeze(0).repeat_interleave(repeats=B,dim=0) # B,N; Basic Reward
+        if self.collab_model:
+            collab_pred = self.collab_model.predict(origin_inters,origin_item,positions).sigmoid() # B*B        
         for i in range(B):
             other_indices = [j for j in range(B) if j != i]
             negative_indices = torch.randperm(len(other_indices))[:N - 1]
             negative_samples = labels[torch.tensor(other_indices)[negative_indices]]
             actions[i, 1:, :] = negative_samples
+            reward[i,:]+=collab_pred[i,torch.cat([torch.tensor(i).unsqueeze(0),torch.tensor(other_indices)[negative_indices]])]
         return actions, reward
 
+    def _create_collab_model(self):
+        checkpoint = torch.load(self.collab_model_path)['state_dict']
+        item_num = checkpoint['item_emb.weight'].shape[0]-2
+        collab_model_args = SimpleArgs(    
+            hidden_size=32,
+            num_heads=1,
+            trm_num=2,
+            dropout_rate=0.5, 
+            max_len=20,)
+        if self.collab_model_name == 'sasrec_seq':
+            self.collab_model = SASRec(1, item_num, self.lm_head.weight.device, collab_model_args)
+        elif self.collab_model_name == 'bert4rec':
+            self.collab_model = Bert4Rec(1, item_num, self.lm_head.weight.device, collab_model_args)
+        elif self.collab_model_name == 'gru4rec':
+            self.collab_model = GRU4Rec(1, item_num, self.lm_head.weight.device, collab_model_args)
+        else:
+            raise ValueError
+        self.collab_model.load_state_dict(checkpoint)
+        self.collab_model.eval()  
+
+
+
+class SimpleArgs:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)

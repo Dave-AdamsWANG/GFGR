@@ -35,6 +35,8 @@ def parse_gfn_args(parser):
     parser.add_argument("--gfn_weight",type=float,default=1.0)
     parser.add_argument("--gfn_type", type=str, default="tb",
                         help="GFN type, TB or DB")
+    parser.add_argument("--collab_model_name", type=str, default="bert4rec")
+    parser.add_argument("--collab_model_path", type=str, default="/root/GFGR/SeqRec/saved/Beauty/bert4rec/pytorch_model.bin")
     return parser
 
 def parse_dataset_args(parser):

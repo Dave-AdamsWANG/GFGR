@@ -22,7 +22,6 @@ class Collator(object):
         # print(self.tokenizer.model_max_length)
 
     def __call__(self, batch):
-
         input_texts = [d["input_ids"] for d in batch]
         label_texts = [d["labels"] for d in batch]
 
@@ -41,7 +40,9 @@ class Collator(object):
                                 return_attention_mask=True)
         inputs['labels'] = labels['input_ids']
         inputs['labels'][inputs['labels'] == self.tokenizer.pad_token_id] = -100
-
+        inputs['origin_item'] = torch.tensor([d["origin_item"] for d in batch]).to(inputs['labels'].device)
+        inputs['origin_inters']=torch.tensor([d["origin_inters"] for d in batch]).to(inputs['labels'].device)
+        inputs['positions'] = torch.tensor([d["positions"] for d in batch]).to(inputs['labels'].device)
         return inputs
 
 
