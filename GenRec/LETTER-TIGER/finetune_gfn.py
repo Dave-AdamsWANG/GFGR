@@ -92,7 +92,9 @@ def train(args):
     
     model.gfn_init_(prefix_allowed_tokens, neg_num=args.gfn_neg_num,
                     b_p=args.gfn_bp,b_r=args.gfn_br,b_z=args.gfn_bz,b_f=args.gfn_bf,
-                    type=args.gfn_type, gfn_weight=args.gfn_weight,collab_model_name=args.collab_model_name,collab_model_path=args.collab_model_path)
+                    type=args.gfn_type, gfn_weight=args.gfn_weight,
+                    collab_model_name=args.collab_model_name,collab_model_path=args.collab_model_path,
+                    collab_reward=args.collab_reward,token_reward=args.token_reward)
 
     # if not ddp and torch.cuda.device_count() > 1:
     #     model.is_parallelizable = True

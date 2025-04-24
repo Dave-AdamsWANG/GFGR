@@ -37,6 +37,10 @@ def parse_gfn_args(parser):
                         help="GFN type, TB or DB")
     parser.add_argument("--collab_model_name", type=str, default="bert4rec")
     parser.add_argument("--collab_model_path", type=str, default="/root/GFGR/SeqRec/saved/Beauty/bert4rec/pytorch_model.bin")
+    parser.add_argument("--collab_reward", action="store_true", default=False,
+                        help="whether user pretrained GR model")
+    parser.add_argument("--token_reward", action="store_true", default=False,
+                        help="whether user pretrained GR model")
     return parser
 
 def parse_dataset_args(parser):

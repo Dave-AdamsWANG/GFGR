@@ -240,7 +240,8 @@ class LETTER(T5ForConditionalGeneration):
         # print(batched_probs.shape)
         return batched_probs, batched_output.decoder_hidden_states
 
-    def gfn_init_(self,prefix_allowed_tokens, neg_num=1,b_p=0.5,b_r=0.5,b_z=1.0,b_f=1.0,type='tb',gfn_weight=0.1,collab_model_name=None,collab_model_path=None):
+    def gfn_init_(self,prefix_allowed_tokens, neg_num=1,b_p=0.5,b_r=0.5,b_z=1.0,b_f=1.0,type='tb',gfn_weight=0.1,
+                    collab_model_name=None,collab_model_path=None,collab_reward=False,token_reward=False):
         self.gfn=True
         self.prefix_allowed_tokens=prefix_allowed_tokens
         self.gfn_flow_estimator = nn.Sequential(nn.Linear(self.lm_head.in_features, 1, bias=False),nn.ReLU()).to(self.device)
@@ -251,7 +252,9 @@ class LETTER(T5ForConditionalGeneration):
         self.gfn_b_p = nn.Parameter(torch.tensor(b_p,device=self.device))
         self.gfn_weight=gfn_weight
         self.gfn_type=type 
-        if collab_model_path: 
+        self.collab_reward=collab_reward
+        self.token_reward=token_reward
+        if self.collab_reward: 
             self.collab_model_name=collab_model_name
             self.collab_model_path=collab_model_path
             self._create_collab_model()
@@ -265,7 +268,7 @@ class LETTER(T5ForConditionalGeneration):
 
     def gfn_loss(self,input_ids,attention_mask,labels,origin_inters,positions,origin_item):
         t0 = time.time()
-        actions, reward = self.in_batch_negative_sampling(labels,origin_inters,positions,origin_item,self.gfn_neg_num+1) # B,N,L; B,N
+        actions, reward = self.in_batch_negative_sampling_new(labels,origin_inters,positions,origin_item,self.gfn_neg_num+1) # B,N,L; B,N
         t1 = time.time()
         prob_F, hd = self.forward_prob(input_ids,attention_mask,actions) # B*N,L
         t2 = time.time()
@@ -299,7 +302,33 @@ class LETTER(T5ForConditionalGeneration):
             negative_indices = torch.randperm(len(other_indices))[:N - 1]
             negative_samples = labels[torch.tensor(other_indices)[negative_indices]]
             actions[i, 1:, :] = negative_samples
-            reward[i,:]+=collab_pred[i,torch.cat([torch.tensor(i).unsqueeze(0),torch.tensor(other_indices)[negative_indices]])]
+            if self.collab_reward:
+                reward[i,:]+=collab_pred[i,torch.cat([torch.tensor(i).unsqueeze(0),torch.tensor(other_indices)[negative_indices]])]
+            if self.token_reward:
+                reward[i,:]+=(negative_samples[:,:-1]==labels[i,:-1]).sum()/(L-1)
+        return actions, reward
+
+    def in_batch_negative_sampling_new(self,labels, origin_inters, positions, origin_item, N):
+        B, L = labels.shape
+        if B <= N:
+            N = B
+        actions = torch.zeros((B, N, L), dtype=labels.dtype, device=labels.device)
+        actions[:, 0, :] = labels
+        all_indices = torch.arange(B, device=labels.device).repeat(B,1)
+        mask = ~torch.eye(B, dtype=torch.bool, device=labels.device)
+        other_indices_matrix = all_indices[mask].reshape(B, B - 1)
+        negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1]
+        negative_samples = labels[other_indices_matrix.gather(1, negative_indices_matrix)]
+        actions[:, 1:, :] = negative_samples
+        reward = torch.tensor([1] + [0] * (N - 1), device=labels.device, dtype=torch.float).unsqueeze(0).repeat_interleave(repeats=B, dim=0)+self.gfn_b_r
+        if self.collab_reward:
+            collab_pred = self.collab_model.predict(origin_inters, origin_item, positions).sigmoid()
+            self_indices = torch.arange(B, device=labels.device).unsqueeze(1)
+            selected_indices = torch.cat([self_indices, other_indices_matrix.gather(1, negative_indices_matrix)], dim=1)
+            reward *= collab_pred.gather(1, selected_indices)+self.gfn_b_r
+        if self.token_reward:
+            partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) / (L - 1)
+            reward *= partial_match+self.gfn_b_r
         return actions, reward
 
     def _create_collab_model(self):
