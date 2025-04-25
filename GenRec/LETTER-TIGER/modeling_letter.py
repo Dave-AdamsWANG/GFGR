@@ -320,7 +320,7 @@ class LETTER(T5ForConditionalGeneration):
         other_indices_matrix = all_indices[mask].reshape(B, B - 1)
         negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1]
         if self.collab_reward:
-            collab_pred = self.collab_model.predict(origin_inters, origin_item, positions).sigmoid()
+            collab_pred = self.collab_model.predict(origin_inters, origin_item, positions)#.sigmoid()
             other_collab_pred = collab_pred.gather(1,other_indices_matrix)
             if torch.rand(1).item() < self.gfn_epsilon:
                 negative_indices_matrix = torch.argsort(other_collab_pred, dim=-1)[:, :N - 1]
@@ -336,10 +336,10 @@ class LETTER(T5ForConditionalGeneration):
         if self.collab_reward:
             self_indices = torch.arange(B, device=labels.device).unsqueeze(1)
             selected_indices = torch.cat([self_indices, other_indices_matrix.gather(1, negative_indices_matrix)], dim=1)
-            reward *= collab_pred.gather(1, selected_indices)+self.gfn_b_r
+            reward *= torch.exp(collab_pred.gather(1, selected_indices)*0.5)#+self.gfn_b_r
         if self.token_reward:
             partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) / (L - 1)
-            reward *= partial_match+self.gfn_b_r
+            reward *= torch.exp(partial_match*0.1)#+self.gfn_b_r
         return actions, reward
 
     def _create_collab_model(self):
