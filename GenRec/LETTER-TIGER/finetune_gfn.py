@@ -60,7 +60,7 @@ def train(args):
     collator = Collator(args, tokenizer)
     if args.pretrained:
         model = T5ForConditionalGeneration.from_pretrained(
-            args.ckpt_path,
+            args.gfn_ckpt_path,
             low_cpu_mem_usage=True,
             device_map=device_map,
         )
@@ -68,6 +68,8 @@ def train(args):
         model.forward_prob = types.MethodType(LETTER.forward_prob, model)
         model.gfn_loss = types.MethodType(LETTER.gfn_loss, model)
         model.in_batch_negative_sampling = types.MethodType(LETTER.in_batch_negative_sampling, model)
+        model.in_batch_negative_sampling_new = types.MethodType(LETTER.in_batch_negative_sampling_new, model)
+        model._create_collab_model = types.MethodType(LETTER._create_collab_model, model)
         model.forward= types.MethodType(LETTER.forward, model)
         model.total_loss= types.MethodType(LETTER.total_loss, model)
         model.ranking_loss =types.MethodType(LETTER.ranking_loss, model)

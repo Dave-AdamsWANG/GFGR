@@ -252,6 +252,7 @@ class LETTER(T5ForConditionalGeneration):
         self.gfn_b_p = nn.Parameter(torch.tensor(b_p,device=self.device))
         self.gfn_weight=gfn_weight
         self.gfn_type=type 
+        self.gfn_epsilon=0.001
         self.collab_reward=collab_reward
         self.token_reward=token_reward
         if self.collab_reward: 
@@ -318,11 +319,21 @@ class LETTER(T5ForConditionalGeneration):
         mask = ~torch.eye(B, dtype=torch.bool, device=labels.device)
         other_indices_matrix = all_indices[mask].reshape(B, B - 1)
         negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1]
+        if self.collab_reward:
+            collab_pred = self.collab_model.predict(origin_inters, origin_item, positions).sigmoid()
+            other_collab_pred = collab_pred.gather(1,other_indices_matrix)
+            if torch.rand(1).item() < self.gfn_epsilon:
+                negative_indices_matrix = torch.argsort(other_collab_pred, dim=-1)[:, :N - 1]
+            else:
+                negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1]
+                if self.gfn_epsilon< 0.9:
+                    self.gfn_epsilon += 0.001
+                    if self.gfn_epsilon>0.89:
+                        print(self.gfn_epsilon)
         negative_samples = labels[other_indices_matrix.gather(1, negative_indices_matrix)]
         actions[:, 1:, :] = negative_samples
         reward = torch.tensor([1] + [0] * (N - 1), device=labels.device, dtype=torch.float).unsqueeze(0).repeat_interleave(repeats=B, dim=0)+self.gfn_b_r
         if self.collab_reward:
-            collab_pred = self.collab_model.predict(origin_inters, origin_item, positions).sigmoid()
             self_indices = torch.arange(B, device=labels.device).unsqueeze(1)
             selected_indices = torch.cat([self_indices, other_indices_matrix.gather(1, negative_indices_matrix)], dim=1)
             reward *= collab_pred.gather(1, selected_indices)+self.gfn_b_r
