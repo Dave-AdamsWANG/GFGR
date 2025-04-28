@@ -118,12 +118,21 @@ class SeqRecDataset(BaseDataset):
         # load data
         self._load_data()
         self._remap_items()
-        
         # load data
         if self.mode == 'train':
-            self.inter_data = self._process_train_data()
+            if hasattr(args,'rl_type'):
+                self.rl_type = args.rl_type
+                self.rl_neg_num = args.rl_neg_num
+                self.inter_data = self._process_train_rl_data()
+            else:
+                self.inter_data = self._process_train_data()
         elif self.mode == 'valid':
-            self.inter_data = self._process_valid_data()
+            if hasattr(args,'rl_type'):
+                self.rl_type = args.rl_type
+                self.rl_neg_num = args.rl_neg_num
+                self.inter_data = self._process_valid_rl_data()
+            else:
+                self.inter_data = self._process_valid_data()
         elif self.mode == 'test':
             self.inter_data = self._process_test_data()
         elif self.mode == 'test_ranking':
@@ -185,6 +194,50 @@ class SeqRecDataset(BaseDataset):
 
         return inter_data
     
+    def _process_train_rl_data(self):
+        def random_neq(candidates, s=[], neg_num=1):
+            # if neg_num > len(candidates):
+            #     return np.array(list(candidates))
+            neg_list = random.sample(list(candidates), neg_num)
+            return np.array(neg_list)
+        inter_data = []
+        all_items = set(self.indices.keys())
+        for uid  in self.remapped_inters:
+            items = self.remapped_inters[uid][:-2]
+            nonneg_items = self.inters[uid]
+            origin_items = nonneg_items[:-2]
+            for i in range(1, len(items)):
+                one_data = dict()
+                # one_data["user"] = uid
+                one_data["item"] = items[i]
+                one_data["origin_item"] = origin_items[i]
+                history = items[:i]
+                origin_history = origin_items[:i]
+                if self.max_his_len > 0:
+                    history = history[-self.max_his_len:]
+                    history_len =len(origin_history)
+                if history_len > self.max_his_len:
+                    mask_len = 0
+                    positions = list(range(1, self.max_his_len+1))
+                    origin_history=origin_history[-self.max_his_len:]
+                else:
+                    mask_len = self.max_his_len - history_len
+                    positions = list(range(1, history_len+1))
+                    origin_seq = np.zeros([self.max_his_len], dtype=np.int32)
+                    origin_seq[-history_len:] = origin_history
+                    origin_history = origin_seq
+                positions= positions[-self.max_his_len:]
+                positions = [0] * mask_len + positions
+                one_data["positions"] = np.array(positions)
+                if self.add_prefix:
+                    history = [str(k+1) + ". " + item_idx for k, item_idx in enumerate(history)]
+                one_data["inters"] = "".join(history)
+                one_data["origin_inters"] = origin_history
+                neg_items = random_neq(all_items,nonneg_items,neg_num=1)
+                one_data["origin_neg"] = neg_items
+                one_data["neg"] = ["".join(self.indices[str(i)]) for i in neg_items] 
+                inter_data.append(one_data)
+        return inter_data
     def _process_valid_data(self):
 
         inter_data = []
@@ -217,6 +270,50 @@ class SeqRecDataset(BaseDataset):
                 history = [str(k + 1) + ". " + item_idx for k, item_idx in enumerate(history)]
             one_data["inters"] = "".join(history)
             one_data["origin_inters"] = origin_history
+            inter_data.append(one_data)
+
+        return inter_data
+
+    def _process_valid_rl_data(self):
+        def random_neq(candidates, s=[], neg_num=1):
+            # if neg_num > len(candidates):
+            #     return np.array(list(candidates))
+            neg_list = random.sample(list(candidates), neg_num)
+            return np.array(neg_list)
+        inter_data = []
+        all_items = set(self.indices.keys())
+        for uid in self.remapped_inters:
+            items = self.remapped_inters[uid]
+            origin_items = self.inters[uid]
+            one_data = dict()
+            # one_data["user"] = uid
+            one_data["item"] = items[-2]
+            one_data["origin_item"] = origin_items[-2]
+            history = items[:-2]
+            origin_history = origin_items[:-2]
+            if self.max_his_len > 0:
+                history = history[-self.max_his_len:]
+                history_len =len(origin_history)
+                if history_len > self.max_his_len:
+                    mask_len = 0
+                    positions = list(range(1, self.max_his_len+1))
+                    origin_history=origin_history[-self.max_his_len:]
+                else:
+                    mask_len = self.max_his_len - history_len
+                    positions = list(range(1, history_len+1))
+                    origin_seq = np.zeros([self.max_his_len], dtype=np.int32)
+                    origin_seq[-history_len:] = origin_history
+                    origin_history = origin_seq
+                positions= positions[-self.max_his_len:]
+                positions = [0] * mask_len + positions
+                one_data["positions"] = np.array(positions)
+            if self.add_prefix:
+                history = [str(k + 1) + ". " + item_idx for k, item_idx in enumerate(history)]
+            one_data["inters"] = "".join(history)
+            one_data["origin_inters"] = origin_history
+            neg_items = random_neq(all_items,origin_items,neg_num=1)
+            one_data["origin_neg"] = neg_items
+            one_data["neg"] = ["".join(self.indices[str(i)]) for i in neg_items] 
             inter_data.append(one_data)
 
         return inter_data
@@ -302,4 +399,8 @@ class SeqRecDataset(BaseDataset):
 
 
         d = self.inter_data[index]
-        return dict(input_ids=d["inters"], labels=d["item"],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
+        if hasattr(self,'rl_type'):
+            if self.rl_type=='dpo':
+                return dict(prompt=d["inters"], chosen=d["item"],rejected=d["neg"][0])
+        else:
+            return dict(input_ids=d["inters"], labels=d["item"],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])

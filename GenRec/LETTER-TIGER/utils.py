@@ -14,16 +14,26 @@ def parse_global_args(parser):
 
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--base_model", type=str, default="./ckpt/TIGER",help="basic model path")
-
     parser.add_argument("--output_dir", type=str, default="./ckpt",
                         help="The output directory")
+    return parser
+
+def parse_rl_args(parser):
+    parser.add_argument("--pretrained", action="store_false", default=True,
+                        help="whether user pretrained GR model")
+    parser.add_argument("--rl_ckpt_path", type=str,
+                        default="./ckpt",
+                        help="The checkpoint path")
+    parser.add_argument("--rl_neg_num",type=int,default=1)
+    parser.add_argument("--rl_type", type=str, default="dpo",
+                        help="RL type, PPO or DPO or GRPO")
     return parser
 
 def parse_gfn_args(parser):
 
 
     parser.add_argument("--pretrained", action="store_false", default=True,
-                        help="whether user pretrained GR model")
+                        help="whether use pretrained GR model")
     parser.add_argument("--gfn_ckpt_path", type=str,
                         default="./ckpt",
                         help="The checkpoint path") # used when pretained is true
@@ -38,9 +48,16 @@ def parse_gfn_args(parser):
     parser.add_argument("--collab_model_name", type=str, default="bert4rec")
     parser.add_argument("--collab_model_path", type=str, default="/root/GFGR/SeqRec/saved/Beauty/bert4rec/pytorch_model.bin")
     parser.add_argument("--collab_reward", action="store_true", default=False,
-                        help="whether user pretrained GR model")
+                        help="whether use collab reward")
     parser.add_argument("--token_reward", action="store_true", default=False,
-                        help="whether user pretrained GR model")
+                        help="whether use token reward")
+    parser.add_argument("--reward_m", action="store_true", default=False,
+                        help="whether use reward model")
+    parser.add_argument("--reward_label_align", action="store_true", default=False,
+                        help="whether use alignment loss")
+    parser.add_argument("--reward_weigted_loss", action="store_true", default=False,
+                        help="whether use weighted loss")
+
     return parser
 
 def parse_dataset_args(parser):
@@ -166,7 +183,7 @@ def load_datasets(args):
             raise NotImplementedError
         train_datasets.append(dataset)
 
-    train_data = ConcatDataset(train_datasets)
+    train_data = train_datasets[0]#ConcatDataset(train_datasets)
 
     valid_data = SeqRecDataset(args,"valid",args.valid_prompt_sample_num)
 
