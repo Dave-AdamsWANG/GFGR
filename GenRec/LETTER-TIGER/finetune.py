@@ -44,7 +44,7 @@ def train(args):
 
 
     train_data, valid_data = load_datasets(args)
-    add_num = tokenizer.add_tokens(train_data.datasets[0].get_new_tokens())
+    add_num = tokenizer.add_tokens(train_data.get_new_tokens())
     config.vocab_size = len(tokenizer)
     if local_rank == 0:
         print("add {} new token.".format(add_num))

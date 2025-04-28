@@ -1,35 +1,41 @@
 export CUDA_LAUNCH_BLOCKING=1
 export CUDA_VISIBLE_DEVICES=0
 
-DATA_PATH=/root/autodl-tmp/data
+DATA_PATH=/root/LETTER/data
 # Baseline 
 # DATASET=fashion
-# CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/
-# RESULTS_FILE=/root/autodl-tmp/results/$DATASET/
-# seed_list=(42 43 44)
-# for seed in ${seed_list[@]}
-# do
-#     python ./finetune.py \
-#         --output_dir $CKPT_DIR \
-#         --dataset $DATASET \
-#         --per_device_batch_size 2048 \
-#         --learning_rate 5e-4 \
-#         --epochs 200 \
-#         --index_file .index.epoch10000.alpha0-beta1e-4.json \
-#         --temperature 1.0 \
-#         --seed ${seed}
+seed_list=(42)
+# data_list=("Instruments" "Beauty")
+data_list=("Yelp")
+for DATASET in ${data_list[@]}
+do
+CKPT_DIR=/root/autodl-tmp/org_chkpt/ckpt/$DATASET/
+RESULTS_FILE=/root/autodl-tmp/results/$DATASET/origin
+for seed in ${seed_list[@]}
+do
+    python ./finetune.py \
+        --output_dir $CKPT_DIR \
+        --dataset $DATASET \
+        --per_device_batch_size 256 \
+        --data_path $DATA_PATH \
+        --learning_rate 5e-4 \
+        --epochs 200 \
+        --index_file .index.json \
+        --temperature 1.0 \
+        --seed ${seed}
 
-#     python test.py \
-#         --gpu_id 0 \
-#         --ckpt_path $CKPT_DIR \
-#         --dataset $DATASET \
-#         --data_path $DATA_PATH \
-#         --results_file $RESULTS_FILE \
-#         --test_batch_size 480 \
-#         --num_beams 20 \
-#         --test_prompt_ids 0 \
-#         --index_file .index.epoch10000.alpha0-beta1e-4.json
-# done
+    python test.py \
+        --gpu_id 0 \
+        --ckpt_path $CKPT_DIR \
+        --dataset $DATASET \
+        --data_path $DATA_PATH \
+        --results_file $RESULTS_FILE \
+        --test_batch_size 480 \
+        --num_beams 20 \
+        --test_prompt_ids 0 \
+        --index_file .index.json
+done
+done
 # neg_num=5
 # weight=0.001
 # OUTPUT_DIR=/root/autodl-tmp/ckpt/$DATASET/gfn/${neg_num}/${weight}
@@ -151,33 +157,33 @@ DATA_PATH=/root/autodl-tmp/data
 # done
 
 
-DATASET=yelp
-CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/
-RESULTS_FILE=/root/autodl-tmp/results/$DATASET/
-seed_list=(42)
-for seed in ${seed_list[@]}
-do
-    python ./finetune.py \
-        --output_dir $CKPT_DIR \
-        --dataset $DATASET \
-        --per_device_batch_size 2048 \
-        --learning_rate 5e-4 \
-        --epochs 200 \
-        --index_file .index.epoch10000.alpha0-beta0.json \
-        --temperature 1.0 \
-        --seed ${seed}
+# DATASET=yelp
+# CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/
+# RESULTS_FILE=/root/autodl-tmp/results/$DATASET/
+# seed_list=(42)
+# for seed in ${seed_list[@]}
+# do
+#     python ./finetune.py \
+#         --output_dir $CKPT_DIR \
+#         --dataset $DATASET \
+#         --per_device_batch_size 2048 \
+#         --learning_rate 5e-4 \
+#         --epochs 200 \
+#         --index_file .index.epoch10000.alpha0-beta0.json \
+#         --temperature 1.0 \
+#         --seed ${seed}
 
-    python test.py \
-        --gpu_id 0 \
-        --ckpt_path $CKPT_DIR \
-        --dataset $DATASET \
-        --data_path $DATA_PATH \
-        --results_file $RESULTS_FILE \
-        --test_batch_size 480 \
-        --num_beams 20 \
-        --test_prompt_ids 0 \
-        --index_file .index.epoch10000.alpha0-beta0.json
-done
+#     python test.py \
+#         --gpu_id 0 \
+#         --ckpt_path $CKPT_DIR \
+#         --dataset $DATASET \
+#         --data_path $DATA_PATH \
+#         --results_file $RESULTS_FILE \
+#         --test_batch_size 480 \
+#         --num_beams 20 \
+#         --test_prompt_ids 0 \
+#         --index_file .index.epoch10000.alpha0-beta0.json
+# done
 
 # for neg_num in ${neg_num_list[@]}
 # do

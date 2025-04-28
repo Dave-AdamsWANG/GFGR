@@ -241,7 +241,8 @@ class LETTER(T5ForConditionalGeneration):
         return batched_probs, batched_output.decoder_hidden_states
 
     def gfn_init_(self,prefix_allowed_tokens, neg_num=1,b_p=0.5,b_r=0.5,b_z=1.0,b_f=1.0,type='tb',gfn_weight=0.1,
-                    collab_model_name=None,collab_model_path=None,collab_reward=False,token_reward=False):
+                    collab_model_name=None,collab_model_path=None,collab_reward=False,token_reward=False,
+                    reward_m=False,reward_label_align=False,reward_weigted_loss=False):
         self.gfn=True
         self.prefix_allowed_tokens=prefix_allowed_tokens
         self.gfn_flow_estimator = nn.Sequential(nn.Linear(self.lm_head.in_features, 1, bias=False),nn.ReLU()).to(self.device)
@@ -249,11 +250,14 @@ class LETTER(T5ForConditionalGeneration):
         self.gfn_b_r = nn.Parameter(torch.tensor(b_r,device=self.device))
         self.gfn_b_f = nn.Parameter(torch.tensor(b_f,device=self.device))
         self.gfn_b_z = nn.Parameter(torch.tensor(b_z,device=self.device))
-        self.gfn_b_p = nn.Parameter(torch.tensor(b_p,device=self.device))
+        self.gfn_b_p = nn.Parameter(torch.tensor(b_p,device=self.device)) # 改成固定的会不会好一点
         self.gfn_weight=gfn_weight
         self.gfn_type=type 
         self.gfn_epsilon=0.001
         self.collab_reward=collab_reward
+        self.reward_m=reward_m # whether to use reward model
+        self.reward_label_align=reward_label_align # KL divergence of predicted and true label
+        self.reward_weigted_loss=reward_weigted_loss # unaligned sample -> big weight
         self.token_reward=token_reward
         if self.collab_reward: 
             self.collab_model_name=collab_model_name
@@ -261,6 +265,11 @@ class LETTER(T5ForConditionalGeneration):
             self._create_collab_model()
         else: 
             self.collab_model=None
+        if self.reward_m:
+            self.reward_model=nn.Sequential(nn.Linear(3, 1, bias=False),nn.Sigmoid()).to(self.device)
+            self.reward_label_align_loss=nn.KLDivLoss(reduction='none')
+
+
         # for name, param in self.named_parameters():
         #     if 'gfn' in name:
         #         param.requires_grad = True
@@ -320,7 +329,7 @@ class LETTER(T5ForConditionalGeneration):
         other_indices_matrix = all_indices[mask].reshape(B, B - 1)
         negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1]
         if self.collab_reward:
-            collab_pred = self.collab_model.predict(origin_inters, origin_item, positions)#.sigmoid()
+            collab_pred = self.collab_model.predict(origin_inters, origin_item, positions).sigmoid()
             other_collab_pred = collab_pred.gather(1,other_indices_matrix)
             if torch.rand(1).item() < self.gfn_epsilon:
                 negative_indices_matrix = torch.argsort(other_collab_pred, dim=-1)[:, :N - 1]
@@ -333,14 +342,32 @@ class LETTER(T5ForConditionalGeneration):
         negative_samples = labels[other_indices_matrix.gather(1, negative_indices_matrix)]
         actions[:, 1:, :] = negative_samples
         reward = torch.tensor([1] + [0] * (N - 1), device=labels.device, dtype=torch.float).unsqueeze(0).repeat_interleave(repeats=B, dim=0)+self.gfn_b_r
+        # B, 1
         if self.collab_reward:
             self_indices = torch.arange(B, device=labels.device).unsqueeze(1)
             selected_indices = torch.cat([self_indices, other_indices_matrix.gather(1, negative_indices_matrix)], dim=1)
-            reward *= torch.exp(collab_pred.gather(1, selected_indices)*0.5)#+self.gfn_b_r
+            # reward *= torch.exp(collab_pred.gather(1, selected_indices)*1.0)#+self.gfn_b_r
+            reward = torch.cat([reward.unsqueeze(-1),collab_pred.gather(1, selected_indices).unsqueeze(-1)],-1)
         if self.token_reward:
             partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) / (L - 1)
-            reward *= torch.exp(partial_match*0.1)#+self.gfn_b_r
-        return actions, reward
+            partial_match = torch.cat([torch.ones_like(partial_match),partial_match],-1)
+            # reward *= torch.exp(partial_match*1.0)#+self.gfn_b_r
+            reward= torch.cat([reward,partial_match.unsqueeze(-1)],-1)
+        if self.reward_m:
+            reward_learn=self.reward_model(reward)
+            if self.reward_label_align:
+                self.align_loss=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,0].reshape(-1,1)) # N,1
+                if self.reward_weigted_loss:
+                    weight = (reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2
+                    self.align_loss=((weight)*self.align_loss).mean()
+                self.align_loss=self.align_loss.mean()
+            else: 
+                self.align_loss=0
+            return actions, reward_learn
+        else:
+            reward=reward.sum(-1)
+            self.align_loss=0
+            return actions, reward
 
     def _create_collab_model(self):
         checkpoint = torch.load(self.collab_model_path)['state_dict']

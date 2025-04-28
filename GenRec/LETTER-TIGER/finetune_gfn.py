@@ -46,7 +46,7 @@ def train(args):
 
 
     train_data, valid_data = load_datasets(args)
-    add_num = tokenizer.add_tokens(train_data.datasets[0].get_new_tokens())
+    add_num = tokenizer.add_tokens(train_data.get_new_tokens())
     config.vocab_size = len(tokenizer)
     if local_rank == 0:
         print("add {} new token.".format(add_num))
@@ -83,7 +83,7 @@ def train(args):
     if local_rank == 0:
         print(model)
     
-    all_items = train_data.datasets[0].get_all_items()
+    all_items = train_data.get_all_items()
     candidate_trie = Trie(
         [
             [0] + tokenizer.encode(candidate)
@@ -96,7 +96,8 @@ def train(args):
                     b_p=args.gfn_bp,b_r=args.gfn_br,b_z=args.gfn_bz,b_f=args.gfn_bf,
                     type=args.gfn_type, gfn_weight=args.gfn_weight,
                     collab_model_name=args.collab_model_name,collab_model_path=args.collab_model_path,
-                    collab_reward=args.collab_reward,token_reward=args.token_reward)
+                    collab_reward=args.collab_reward,token_reward=args.token_reward,
+                    reward_m=args.reward_m,reward_label_align=args.reward_label_align,reward_weigted_loss=args.reward_weigted_loss)
 
     # if not ddp and torch.cuda.device_count() > 1:
     #     model.is_parallelizable = True
