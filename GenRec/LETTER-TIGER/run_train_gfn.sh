@@ -53,6 +53,70 @@ do
         --index_file .index.json \
         --gfn_neg_num ${neg_num} \
         --gfn_weight ${weight} 
+    
+    python ./finetune_gfn.py \
+    --output_dir $OUTPUT_DIR \
+    --dataset $DATASET \
+    --data_path $DATA_PATH \
+    --gfn_ckpt_path $CKPT_DIR \
+    --per_device_batch_size 256 \
+    --learning_rate 5e-4 \
+    --epochs 200 \
+    --index_file .index.json \
+    --temperature 1.0 \
+    --gfn_neg_num ${neg_num} \
+    --gfn_weight ${weight}  \
+    --collab_model_path /root/GFGR/SeqRec/saved/$DATASET/bert4rec/pytorch_model.bin \
+    --collab_reward \
+    --token_reward \
+    --pretrained \
+    --reward_m \
+    --reward_label_align \
+
+
+    python test.py \
+        --gpu_id 0 \
+        --ckpt_path $OUTPUT_DIR \
+        --dataset $DATASET \
+        --data_path $DATA_PATH \
+        --results_file $RESULTS_FILE \
+        --test_batch_size 480 \
+        --num_beams 20 \
+        --test_prompt_ids 0 \
+        --index_file .index.json \
+        --gfn_neg_num ${neg_num} \
+        --gfn_weight ${weight} 
+    
+    python ./finetune_gfn.py \
+    --output_dir $OUTPUT_DIR \
+    --dataset $DATASET \
+    --data_path $DATA_PATH \
+    --gfn_ckpt_path $CKPT_DIR \
+    --per_device_batch_size 256 \
+    --learning_rate 5e-4 \
+    --epochs 200 \
+    --index_file .index.json \
+    --temperature 1.0 \
+    --gfn_neg_num ${neg_num} \
+    --gfn_weight ${weight}  \
+    --collab_model_path /root/GFGR/SeqRec/saved/$DATASET/bert4rec/pytorch_model.bin \
+    --collab_reward \
+    --token_reward \
+    --pretrained \
+    --reward_m \
+
+    python test.py \
+        --gpu_id 0 \
+        --ckpt_path $OUTPUT_DIR \
+        --dataset $DATASET \
+        --data_path $DATA_PATH \
+        --results_file $RESULTS_FILE \
+        --test_batch_size 480 \
+        --num_beams 20 \
+        --test_prompt_ids 0 \
+        --index_file .index.json \
+        --gfn_neg_num ${neg_num} \
+        --gfn_weight ${weight} 
     done
 done
 
