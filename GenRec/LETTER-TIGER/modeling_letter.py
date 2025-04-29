@@ -289,12 +289,12 @@ class LETTER(T5ForConditionalGeneration):
             loss_tb = (torch.log(self.gfn_b_z) + torch.log(flow_pred[:,0]+self.gfn_b_p)+torch.log(prob_F+self.gfn_b_f).sum(-1) -torch.log(reward.reshape(-1,1)+self.gfn_b_r))**2
             t4 = time.time()
             # print(t4-t3,t3-t2,t2-t1,t1-t0)
-            return loss_tb.mean()#,loss_tb,torch.log(self.gfn_b_z),torch.log(flow_pred[:,0]),torch.log(prob_F+self.gfn_b_f).sum(-1),torch.log(reward.reshape(-1,1)+self.gfn_b_r)
+            return loss_tb.mean()+self.align_loss#,loss_tb,torch.log(self.gfn_b_z),torch.log(flow_pred[:,0]),torch.log(prob_F+self.gfn_b_f).sum(-1),torch.log(reward.reshape(-1,1)+self.gfn_b_r)
         elif self.gfn_type=='db':
             K = prob_F.shape[-1]
             loss_db = ((torch.log(self.gfn_b_z/K) + torch.log(flow_pred[:,:K-1]+self.gfn_b_p)-torch.log(flow_pred[:,1:]+self.gfn_b_p)+torch.log(prob_F[:,:K-1]+self.gfn_b_f))**2/K).sum(-1) + \
                         (torch.log(self.gfn_b_z/K) + torch.log(flow_pred[:,K-1]+self.gfn_b_p)-torch.log(reward.reshape(-1,1)+self.gfn_b_r)+torch.log(prob_F[:,-1]+self.gfn_b_f))**2/K
-            return loss_db.mean()
+            return loss_db.mean()+self.align_loss
         else:
             raise NotImplementedError
         
