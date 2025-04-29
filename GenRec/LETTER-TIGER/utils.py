@@ -57,7 +57,8 @@ def parse_gfn_args(parser):
                         help="whether use alignment loss")
     parser.add_argument("--reward_weigted_loss", action="store_true", default=False,
                         help="whether use weighted loss")
-
+    parser.add_argument("--collab_align", action="store_true", default=False,
+                        help="whether use collab align loss")
     return parser
 
 def parse_dataset_args(parser):

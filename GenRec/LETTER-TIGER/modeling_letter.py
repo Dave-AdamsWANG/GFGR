@@ -240,33 +240,36 @@ class LETTER(T5ForConditionalGeneration):
         # print(batched_probs.shape)
         return batched_probs, batched_output.decoder_hidden_states
 
-    def gfn_init_(self,prefix_allowed_tokens, neg_num=1,b_p=0.5,b_r=0.5,b_z=1.0,b_f=1.0,type='tb',gfn_weight=0.1,
-                    collab_model_name=None,collab_model_path=None,collab_reward=False,token_reward=False,
-                    reward_m=False,reward_label_align=False,reward_weigted_loss=False):
+    def gfn_init_(self,prefix_allowed_tokens,args):
         self.gfn=True
         self.prefix_allowed_tokens=prefix_allowed_tokens
         self.gfn_flow_estimator = nn.Sequential(nn.Linear(self.lm_head.in_features, 1, bias=False),nn.ReLU()).to(self.device)
-        self.gfn_neg_num=neg_num
-        self.gfn_b_r = nn.Parameter(torch.tensor(b_r,device=self.device))
-        self.gfn_b_f = nn.Parameter(torch.tensor(b_f,device=self.device))
-        self.gfn_b_z = nn.Parameter(torch.tensor(b_z,device=self.device))
-        self.gfn_b_p = nn.Parameter(torch.tensor(b_p,device=self.device)) # 改成固定的会不会好一点
-        self.gfn_weight=gfn_weight
-        self.gfn_type=type 
+        self.gfn_neg_num=args.gfn_neg_num
+        self.gfn_b_r = nn.Parameter(torch.tensor(args.gfn_br,device=self.device))
+        self.gfn_b_f = nn.Parameter(torch.tensor(args.gfn_bf,device=self.device))
+        self.gfn_b_z = nn.Parameter(torch.tensor(args.gfn_bz,device=self.device))
+        self.gfn_b_p = nn.Parameter(torch.tensor(args.gfn_bp,device=self.device)) # 改成固定的会不会好一点
+        self.gfn_weight=args.gfn_weight
+        self.gfn_type=args.gfn_type 
         self.gfn_epsilon=0.001
-        self.collab_reward=collab_reward
-        self.reward_m=reward_m # whether to use reward model
-        self.reward_label_align=reward_label_align # KL divergence of predicted and true label
-        self.reward_weigted_loss=reward_weigted_loss # unaligned sample -> big weight
-        self.token_reward=token_reward
+        self.collab_reward=args.collab_reward
+        self.reward_m=args.reward_m # whether to use reward model
+        self.reward_label_align=args.reward_label_align # KL divergence of predicted and true label
+        self.reward_weigted_loss=args.reward_weigted_loss # unaligned sample -> big weight
+        self.token_reward=args.token_reward
+        self.collab_align=args.collab_align
         if self.collab_reward: 
-            self.collab_model_name=collab_model_name
-            self.collab_model_path=collab_model_path
+            self.collab_model_name=args.collab_model_name
+            self.collab_model_path=args.collab_model_path
             self._create_collab_model()
         else: 
             self.collab_model=None
         if self.reward_m:
-            self.reward_model=nn.Sequential(nn.Linear(3, 1, bias=False),nn.Sigmoid()).to(self.device)
+            self.label_emb=nn.Embedding(2,8)
+            self.collab_emb=Autodis(8,100) # emb, bucket number
+            self.token_emb=nn.Embedding(6,8)
+            self.reward_model=nn.Sequential(nn.Linear(3*8, 1, bias=False),nn.Sigmoid()).to(self.device)
+
             self.reward_label_align_loss=nn.KLDivLoss(reduction='none')
 
 
@@ -354,9 +357,14 @@ class LETTER(T5ForConditionalGeneration):
             # reward *= torch.exp(partial_match*1.0)#+self.gfn_b_r
             reward= torch.cat([reward,partial_match.unsqueeze(-1)],-1)
         if self.reward_m:
-            reward_learn=self.reward_model(reward)
+            label_emb=self.label_emb(reward[:,:,0].long())
+            collab_emb = self.collab_emb(reward[:,:,1].unsqueeze(-1)) # emb, bucket number
+            token_emb=self.token_emb(reward[:,:,2].long())
+            reward_learn=self.reward_model(torch.cat([label_emb,collab_emb,token_emb],-1))
             if self.reward_label_align:
                 self.align_loss=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,0].reshape(-1,1)) # N,1
+                if self.collab_align:
+                    self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,1].reshape(-1,1))
                 if self.reward_weigted_loss:
                     weight = (reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2
                     self.align_loss=((weight)*self.align_loss).mean()
@@ -395,3 +403,31 @@ class SimpleArgs:
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+class Autodis(nn.Module):
+    def __init__(self, n_embd, bucket_number):
+        super().__init__()
+        self.bucket_number=bucket_number
+        self.n_embd=n_embd
+        self.bucket = nn.Sequential(nn.Linear(1, self.n_embd))
+        self.ret_emb_score = nn.Sequential(nn.Linear(1, self.bucket_number, bias=False), nn.LeakyReLU())
+        self.res = nn.Linear(self.bucket_number, self.bucket_number, bias=False)
+        self.temp = nn.Sequential(
+            nn.Linear(1, self.bucket_number, bias=False), 
+            nn.LeakyReLU(), 
+            nn.Linear(self.bucket_number, self.bucket_number, bias=False),
+            nn.Sigmoid()
+            )
+
+    def forward(self, x, layer_past=None):
+        bucket_value = torch.arange(0, 7*self.bucket_number, 7).to(x.device).reshape(self.bucket_number,1).type(torch.float32)
+        Meta_emb = self.bucket(bucket_value)
+        t = self.temp(x)
+        x = self.ret_emb_score(x)
+        x = x + self.res(x)
+        max_value,_ = torch.max(x, dim=2, keepdim=True)
+        x = torch.exp(x - max_value)
+        soft_sum = torch.sum(x, dim=2).unsqueeze(2)
+        x = x / soft_sum
+        x = torch.einsum('nck,km->ncm', [x, Meta_emb])
+        return x

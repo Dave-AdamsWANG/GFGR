@@ -39,6 +39,7 @@ do
     --reward_m \
     --reward_label_align \
     --reward_weigted_loss \
+    --collab_align \
 
 
     python test.py \
@@ -72,6 +73,8 @@ do
     --pretrained \
     --reward_m \
     --reward_label_align \
+    --reward_weigted_loss \
+
 
 
     python test.py \
