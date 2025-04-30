@@ -265,9 +265,9 @@ class LETTER(T5ForConditionalGeneration):
         else: 
             self.collab_model=None
         if self.reward_m:
-            self.label_emb=nn.Embedding(2,8)
-            self.collab_emb=Autodis(8,100) # emb, bucket number
-            self.token_emb=nn.Embedding(6,8)
+            self.label_emb=nn.Embedding(2,8).to(self.device)
+            self.collab_emb=Autodis(8,100).to(self.device) # emb, bucket number
+            self.token_emb=nn.Embedding(6,8).to(self.device)
             self.reward_model=nn.Sequential(nn.Linear(3*8, 1, bias=False),nn.Sigmoid()).to(self.device)
 
             self.reward_label_align_loss=nn.KLDivLoss(reduction='none')
