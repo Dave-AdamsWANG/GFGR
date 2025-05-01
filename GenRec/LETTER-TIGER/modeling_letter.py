@@ -344,7 +344,7 @@ class LETTER(T5ForConditionalGeneration):
                         print(self.gfn_epsilon)
         negative_samples = labels[other_indices_matrix.gather(1, negative_indices_matrix)]
         actions[:, 1:, :] = negative_samples
-        reward = torch.tensor([1] + [0] * (N - 1), device=labels.device, dtype=torch.float).unsqueeze(0).repeat_interleave(repeats=B, dim=0)+self.gfn_b_r
+        reward = torch.tensor([1] + [0] * (N - 1), device=labels.device, dtype=torch.float).unsqueeze(0).repeat_interleave(repeats=B, dim=0)#+self.gfn_b_r
         # B, 1
         if self.collab_reward:
             self_indices = torch.arange(B, device=labels.device).unsqueeze(1)
@@ -352,8 +352,10 @@ class LETTER(T5ForConditionalGeneration):
             # reward *= torch.exp(collab_pred.gather(1, selected_indices)*1.0)#+self.gfn_b_r
             reward = torch.cat([reward.unsqueeze(-1),collab_pred.gather(1, selected_indices).unsqueeze(-1)],-1)
         if self.token_reward:
-            partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) / (L - 1)
-            partial_match = torch.cat([torch.ones_like(partial_match),partial_match],-1)
+            # partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) / (L - 1)
+            # partial_match = torch.cat([torch.ones_like(partial_match),partial_match],-1)
+            partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) #/ (L - 1)
+            partial_match = torch.cat([torch.ones([B,1,1], device=labels.device)*(L - 1),partial_match],-1)
             # reward *= torch.exp(partial_match*1.0)#+self.gfn_b_r
             reward= torch.cat([reward,partial_match.unsqueeze(-1)],-1)
         if self.reward_m:

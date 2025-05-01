@@ -35,7 +35,6 @@ def train(args):
         device_map = {"": local_rank}
     device = torch.device("cuda", local_rank)
 
-
     config = T5Config.from_pretrained(args.base_model)
     tokenizer = T5Tokenizer.from_pretrained(
         args.base_model,
@@ -80,8 +79,8 @@ def train(args):
         model.set_hyper(args.temperature)
         model.resize_token_embeddings(len(tokenizer))
         model.to(device)
-    if local_rank == 0:
-        print(model)
+    # if local_rank == 0:
+    #     print(model)
     
     all_items = train_data.get_all_items()
     candidate_trie = Trie(
