@@ -355,7 +355,7 @@ class LETTER(T5ForConditionalGeneration):
             # partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) / (L - 1)
             # partial_match = torch.cat([torch.ones_like(partial_match),partial_match],-1)
             partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) #/ (L - 1)
-            partial_match = torch.cat([torch.ones([B,1,1], device=labels.device)*(L - 1),partial_match],-1)
+            partial_match = torch.cat([torch.ones([B,1], device=labels.device)*(L - 1),partial_match],-1)
             # reward *= torch.exp(partial_match*1.0)#+self.gfn_b_r
             reward= torch.cat([reward,partial_match.unsqueeze(-1)],-1)
         if self.reward_m:
