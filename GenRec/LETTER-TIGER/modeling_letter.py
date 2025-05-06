@@ -380,7 +380,7 @@ class LETTER(T5ForConditionalGeneration):
             if isinstance(self.align_loss, torch.Tensor):
                 self.align_loss=self.align_loss.mean()
             if self.reward_res:
-                reward_learn+=reward[:,:,0]
+                reward_learn=reward_learn+reward[:,:,0].unsqueeze(-1)
             return actions, reward_learn
         else:
             reward=reward.sum(-1)
