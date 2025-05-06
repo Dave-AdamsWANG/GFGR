@@ -266,10 +266,10 @@ class LETTER(T5ForConditionalGeneration):
             self.collab_model=None
         if self.reward_m:
             self.label_emb=nn.Embedding(2,8).to(self.device)
-            self.collab_emb=Autodis(8,100).to(self.device) # emb, bucket number
+            self.collab_emb=Autodis(8,10).to(self.device) # emb, bucket number
             self.token_emb=nn.Embedding(6,8).to(self.device)
             self.reward_model=nn.Sequential(nn.Linear(3*8, 1, bias=False),nn.Sigmoid()).to(self.device)
-
+            self.reward_emb_norm=nn.BatchNorm1d(num_features=3*8)
             self.reward_label_align_loss=nn.KLDivLoss(reduction='none')
 
 
@@ -292,12 +292,12 @@ class LETTER(T5ForConditionalGeneration):
             loss_tb = (torch.log(self.gfn_b_z) + torch.log(flow_pred[:,0]+self.gfn_b_p)+torch.log(prob_F+self.gfn_b_f).sum(-1) -torch.log(reward.reshape(-1,1)+self.gfn_b_r))**2
             t4 = time.time()
             # print(t4-t3,t3-t2,t2-t1,t1-t0)
-            return loss_tb.mean()+self.align_loss#,loss_tb,torch.log(self.gfn_b_z),torch.log(flow_pred[:,0]),torch.log(prob_F+self.gfn_b_f).sum(-1),torch.log(reward.reshape(-1,1)+self.gfn_b_r)
+            return loss_tb.mean()+0.1*self.align_loss#,loss_tb,torch.log(self.gfn_b_z),torch.log(flow_pred[:,0]),torch.log(prob_F+self.gfn_b_f).sum(-1),torch.log(reward.reshape(-1,1)+self.gfn_b_r)
         elif self.gfn_type=='db':
             K = prob_F.shape[-1]
             loss_db = ((torch.log(self.gfn_b_z/K) + torch.log(flow_pred[:,:K-1]+self.gfn_b_p)-torch.log(flow_pred[:,1:]+self.gfn_b_p)+torch.log(prob_F[:,:K-1]+self.gfn_b_f))**2/K).sum(-1) + \
                         (torch.log(self.gfn_b_z/K) + torch.log(flow_pred[:,K-1]+self.gfn_b_p)-torch.log(reward.reshape(-1,1)+self.gfn_b_r)+torch.log(prob_F[:,-1]+self.gfn_b_f))**2/K
-            return loss_db.mean()+self.align_loss
+            return loss_db.mean()+0.1*self.align_loss
         else:
             raise NotImplementedError
         
@@ -362,17 +362,20 @@ class LETTER(T5ForConditionalGeneration):
             label_emb=self.label_emb(reward[:,:,0].long())
             collab_emb = self.collab_emb(reward[:,:,1].unsqueeze(-1)) # emb, bucket number
             token_emb=self.token_emb(reward[:,:,2].long())
-            reward_learn=self.reward_model(torch.cat([label_emb,collab_emb,token_emb],-1))
+            reward_emb = self.reward_emb_norm(torch.cat([label_emb,collab_emb,token_emb],-1).transpose(1,2)).transpose(1,2)
+            reward_learn=self.reward_model(reward_emb) # B,N,1
+            # print(torch.cat([label_emb,collab_emb,token_emb],-1)[0])
+            # print(reward_learn[0])
+            self.align_loss=0
             if self.reward_label_align:
-                self.align_loss=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,0].reshape(-1,1)) # N,1
-                if self.collab_align:
-                    self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,1].reshape(-1,1))
-                if self.reward_weigted_loss:
-                    weight = (reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2
-                    self.align_loss=((weight)*self.align_loss).mean()
+                self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,0].reshape(-1,1)) # N,1
+            if self.collab_align:
+                self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,1].reshape(-1,1))
+            if self.reward_weigted_loss:
+                weight = (reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2
+                self.align_loss=((weight)*self.align_loss).mean()
+            if isinstance(self.align_loss, torch.Tensor):
                 self.align_loss=self.align_loss.mean()
-            else: 
-                self.align_loss=0
             return actions, reward_learn
         else:
             reward=reward.sum(-1)
