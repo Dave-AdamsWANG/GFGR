@@ -57,6 +57,9 @@ def parse_gfn_args(parser):
                         help="whether use alignment loss")
     parser.add_argument("--reward_weigted_loss", action="store_true", default=False,
                         help="whether use weighted loss")
+    parser.add_argument("--reward_res", action="store_true", default=False,
+                    help="whether use reward residual connection")        
+    parser.add_argument("--align_weight",type=float,default=0.1)
     parser.add_argument("--collab_align", action="store_true", default=False,
                         help="whether use collab align loss")
     return parser

@@ -258,6 +258,8 @@ class LETTER(T5ForConditionalGeneration):
         self.reward_weigted_loss=args.reward_weigted_loss # unaligned sample -> big weight
         self.token_reward=args.token_reward
         self.collab_align=args.collab_align
+        self.reward_res = args.reward_res
+        self.align_weight=args.align_weight
         if self.collab_reward: 
             self.collab_model_name=args.collab_model_name
             self.collab_model_path=args.collab_model_path
@@ -271,6 +273,7 @@ class LETTER(T5ForConditionalGeneration):
             self.reward_model=nn.Sequential(nn.Linear(3*8, 1, bias=False),nn.Sigmoid()).to(self.device)
             self.reward_emb_norm=nn.BatchNorm1d(num_features=3*8)
             self.reward_label_align_loss=nn.KLDivLoss(reduction='none')
+        
 
 
         # for name, param in self.named_parameters():
@@ -292,12 +295,12 @@ class LETTER(T5ForConditionalGeneration):
             loss_tb = (torch.log(self.gfn_b_z) + torch.log(flow_pred[:,0]+self.gfn_b_p)+torch.log(prob_F+self.gfn_b_f).sum(-1) -torch.log(reward.reshape(-1,1)+self.gfn_b_r))**2
             t4 = time.time()
             # print(t4-t3,t3-t2,t2-t1,t1-t0)
-            return loss_tb.mean()+0.1*self.align_loss#,loss_tb,torch.log(self.gfn_b_z),torch.log(flow_pred[:,0]),torch.log(prob_F+self.gfn_b_f).sum(-1),torch.log(reward.reshape(-1,1)+self.gfn_b_r)
+            return loss_tb.mean()+self.align_weight*self.align_loss#,loss_tb,torch.log(self.gfn_b_z),torch.log(flow_pred[:,0]),torch.log(prob_F+self.gfn_b_f).sum(-1),torch.log(reward.reshape(-1,1)+self.gfn_b_r)
         elif self.gfn_type=='db':
             K = prob_F.shape[-1]
             loss_db = ((torch.log(self.gfn_b_z/K) + torch.log(flow_pred[:,:K-1]+self.gfn_b_p)-torch.log(flow_pred[:,1:]+self.gfn_b_p)+torch.log(prob_F[:,:K-1]+self.gfn_b_f))**2/K).sum(-1) + \
                         (torch.log(self.gfn_b_z/K) + torch.log(flow_pred[:,K-1]+self.gfn_b_p)-torch.log(reward.reshape(-1,1)+self.gfn_b_r)+torch.log(prob_F[:,-1]+self.gfn_b_f))**2/K
-            return loss_db.mean()+0.1*self.align_loss
+            return loss_db.mean()+self.align_weight*self.align_loss
         else:
             raise NotImplementedError
         
@@ -372,10 +375,12 @@ class LETTER(T5ForConditionalGeneration):
             if self.collab_align:
                 self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,1].reshape(-1,1))
             if self.reward_weigted_loss:
-                weight = (reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2
+                weight = F.softmax(1/(reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2,dim=0)*B
                 self.align_loss=((weight)*self.align_loss).mean()
             if isinstance(self.align_loss, torch.Tensor):
                 self.align_loss=self.align_loss.mean()
+            if self.reward_res:
+                reward_learn+=reward[:,:,0]
             return actions, reward_learn
         else:
             reward=reward.sum(-1)
