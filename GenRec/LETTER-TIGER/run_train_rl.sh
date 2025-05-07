@@ -8,18 +8,20 @@ DATA_PATH=/root/LETTER/data
 # Baseline 
 # DATASET=fashion
 seed_list=(42)
-data_list=("Yelp" "Instruments" "Beauty")
-rl_typ=dpo
+data_list=("Beauty" "Instruments" "Yelp")
+rl_type=ppo
 for DATASET in ${data_list[@]}
 do
 CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/$rl_typ
-ORG_CKPT_DIR=/root/autodl-tmp/org_chkpt/ckpt/$DATASET/
-RESULTS_FILE=/root/autodl-tmp/results/$DATASET/$rl_typ
+ORG_CKPT_DIR=/root/autodl-tmp/org_chkpt/ckpt/$DATASET
+ORG_CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/gfn/1/0.1/
+RESULTS_FILE=/root/autodl-tmp/results/$DATASET/$rl_type
 for seed in ${seed_list[@]}
 do
     python ./finetune_rl.py \
         --output_dir $CKPT_DIR \
         --rl_ckpt_path $ORG_CKPT_DIR\
+        --rl_type $rl_type\
         --dataset $DATASET \
         --per_device_batch_size 1024 \
         --data_path $DATA_PATH \

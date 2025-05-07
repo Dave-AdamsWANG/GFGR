@@ -129,9 +129,9 @@ class RLCollator(object):
                                     return_attention_mask=True)
             inputs['labels'] = labels['input_ids']
             inputs['labels'][inputs['labels'] == self.tokenizer.pad_token_id] = -100
-            origin_item= torch.tensor([d["origin_item"] for d in batch]).to(prompt['input_ids'].device)
-            origin_inters=torch.tensor([d["origin_inters"] for d in batch]).to(prompt['input_ids'].device)
-            positions = torch.tensor([d["positions"] for d in batch]).to(prompt['input_ids'].device)
+            origin_item= torch.tensor([d["origin_item"] for d in batch]).to(inputs['input_ids'].device)
+            origin_inters=torch.tensor([d["origin_inters"] for d in batch]).to(inputs['input_ids'].device)
+            positions = torch.tensor([d["positions"] for d in batch]).to(inputs['input_ids'].device)
 
             return dict(inputs=inputs,origin_item=origin_item,origin_inters=origin_inters,positions=positions)
 

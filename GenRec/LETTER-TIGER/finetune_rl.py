@@ -5,13 +5,13 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import sys
 from typing import List
 from transformers import EarlyStoppingCallback
-
+from tqdm import tqdm
 import torch
+from torch.utils.data import DataLoader
 import transformers
-
 from transformers import T5Tokenizer, T5Config, T5ForConditionalGeneration
 import trl
-from trl import DPOTrainer, DPOConfig
+from trl import DPOTrainer, DPOConfig, PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead, create_reference_model
 
 from datasets import Dataset
 from modeling_letter import LETTER
@@ -19,10 +19,17 @@ from modeling_letter import LETTER
 from utils import *
 from collator import RLCollator
 
+class SimpleArgs:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
 def get_keys_by_value(my_dict, target_value):
     keys = [int(key) for key, value in my_dict.items() if value == target_value]
     if len(keys)==0:
         keys.append(-1)
+    elif len(keys)>1:
+        keys=keys[:1]
     return keys
 
 def train(args):
@@ -62,8 +69,7 @@ def train(args):
         return Dataset.from_dict(data_dict)
 
     add_num = tokenizer.add_tokens(train_data.get_new_tokens())
-    train_data = data_converter(train_data)
-    valid_data = data_converter(valid_data)
+
     config.vocab_size = len(tokenizer)
     if local_rank == 0:
         print("add {} new token.".format(add_num))
@@ -74,6 +80,8 @@ def train(args):
         print(valid_data[100])
 
     if args.rl_type=='dpo':
+        train_data = data_converter(train_data)
+        valid_data = data_converter(valid_data)
         # collator = RLCollator(args, tokenizer)
         if args.pretrained:
             model = T5ForConditionalGeneration.from_pretrained(
@@ -146,7 +154,7 @@ def train(args):
     elif args.rl_type=='ppo':
 
         model = trl.AutoModelForSeq2SeqLMWithValueHead(T5ForConditionalGeneration.from_pretrained(
-            args.rl_ckpt_path,,
+            args.rl_ckpt_path,
             low_cpu_mem_usage=True,
             device_map=device_map,
         ))
@@ -163,6 +171,7 @@ def train(args):
         from models.Bert4Rec import Bert4Rec
         model_state_dict=torch.load(f'/root/GFGR/SeqRec/saved/{args.dataset}/bert4rec/pytorch_model.bin')
         colab_model = Bert4Rec(1,model_state_dict['state_dict']['item_emb.weight'].shape[0]-2,device,collab_model_args)
+        print(model_state_dict['state_dict']['item_emb.weight'].shape[0]-2)
         colab_model.load_state_dict(model_state_dict['state_dict'])
         colab_model.eval()
         colab_model.to(device)
@@ -171,18 +180,19 @@ def train(args):
             batch_size=args.per_device_batch_size,
             gradient_accumulation_steps=args.gradient_accumulation_steps,
             learning_rate=args.learning_rate,
-            report_to=[],
         )
         ppo_trainer = PPOTrainer(config=ppo_config, model=model,tokenizer=tokenizer)
         for epoch in range(args.epochs):
-            prog_iter = tqdm(self.train_loader, leave=False, desc='Training')
+            prog_iter = tqdm(train_loader, leave=False, desc='Training')
             for batch in prog_iter:
                 query_tensor=batch['inputs']['input_ids'].to(device)
                 response_tensor=model.generate(input_ids=query_tensor,attention_mask=batch['inputs']['attention_mask'].to(device))
                 decoded_response=[tokenizer.decode(i[1:-1]).split(' ') for i in response_tensor]
                 response_items=torch.tensor([get_keys_by_value(train_data.indices,i) for i in decoded_response])
-                reward = (response_items.squeeze()==batch['origin_item']).long().to(device).squeeze()+colab_model.predict(torch.tensor(batch['origin_inters']).to(device),response_items.to(device),torch.tensor(batch['positions']).to(device)).sigmoid().squeeze()
-                train_stats = ppo_trainer.step(list(.unbind(dim=0)), list(response_tensor.unbind(dim=0)), list(reward.unbind(dim=0)))
+                print(batch['origin_inters'].max())
+                collab_score = colab_model.predict(batch['origin_inters'].to(device),response_items.to(device),batch['positions'].to(device)).sigmoid()
+                reward = (response_items.squeeze()==batch['origin_item']).long().to(device).squeeze()+collab_score.squeeze()
+                train_stats = ppo_trainer.step(list(query_tensor.unbind(dim=0)), list(response_tensor.unbind(dim=0)), list(reward.unbind(dim=0)))
             save_dir = os.path.join(args.output_dir,epoch)
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
