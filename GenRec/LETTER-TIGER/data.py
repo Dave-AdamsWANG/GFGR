@@ -233,9 +233,10 @@ class SeqRecDataset(BaseDataset):
                     history = [str(k+1) + ". " + item_idx for k, item_idx in enumerate(history)]
                 one_data["inters"] = "".join(history)
                 one_data["origin_inters"] = origin_history
-                neg_items = random_neq(all_items,nonneg_items,neg_num=1)
-                one_data["origin_neg"] = neg_items
-                one_data["neg"] = ["".join(self.indices[str(i)]) for i in neg_items] 
+                if self.rl_type=='dpo':
+                    neg_items = random_neq(all_items,nonneg_items,neg_num=1)
+                    one_data["origin_neg"] = neg_items
+                    one_data["neg"] = ["".join(self.indices[str(i)]) for i in neg_items] 
                 inter_data.append(one_data)
         return inter_data
     def _process_valid_data(self):
@@ -311,9 +312,10 @@ class SeqRecDataset(BaseDataset):
                 history = [str(k + 1) + ". " + item_idx for k, item_idx in enumerate(history)]
             one_data["inters"] = "".join(history)
             one_data["origin_inters"] = origin_history
-            neg_items = random_neq(all_items,origin_items,neg_num=1)
-            one_data["origin_neg"] = neg_items
-            one_data["neg"] = ["".join(self.indices[str(i)]) for i in neg_items] 
+            if self.rl_type=='dpo':
+                neg_items = random_neq(all_items,origin_items,neg_num=1)
+                one_data["origin_neg"] = neg_items
+                one_data["neg"] = ["".join(self.indices[str(i)]) for i in neg_items] 
             inter_data.append(one_data)
 
         return inter_data
@@ -402,5 +404,7 @@ class SeqRecDataset(BaseDataset):
         if hasattr(self,'rl_type'):
             if self.rl_type=='dpo':
                 return dict(prompt=d["inters"], chosen=d["item"],rejected=d["neg"][0])
+            elif self.rl_type=='grpo' or self.rl_type=='ppo':
+                return dict(prompt=d["inters"], ground_truth=d["item"],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
         else:
             return dict(input_ids=d["inters"], labels=d["item"],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
