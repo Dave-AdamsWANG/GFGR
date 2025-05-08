@@ -28,7 +28,7 @@ def parse_global_args(parser):
 def parse_dataset_args(parser):
     parser.add_argument("--data_path", type=str, default="",
                         help="data directory")
-    parser.add_argument("--tasks", type=str, default="seqrec,item2index,index2item,fusionseqrec,itemsearch,preferenceobtain",
+    parser.add_argument("--tasks", type=str, default="seqrec,item2index,index2item,fusionseqrec",
                         help="Downstream tasks, separate by comma")
     parser.add_argument("--dataset", type=str, default="Instruments", help="Dataset name")
     parser.add_argument("--index_file", type=str, default=".index.json", help="the item indices file")
