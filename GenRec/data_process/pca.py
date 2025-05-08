@@ -5,7 +5,7 @@ from sklearn.decomposition import PCA
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='music', help='music / beauty / fashion / toys /yelp')
-    parser.add_argument('--root', type=str, default="/root/autodl-tmp/data")
+    parser.add_argument('--root', type=str, default="/root/LETTER/data")
     return parser.parse_args()
 
 

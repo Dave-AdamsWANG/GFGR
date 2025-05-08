@@ -15,7 +15,7 @@ from transformers import LlamaForCausalLM, LlamaTokenizer, LlamaConfig, AutoToke
 
 def load_data(args):
 
-    item2feature_path = os.path.join(args.root, f'item_info.json')
+    item2feature_path = os.path.join(args.root, f'{args.dataset}.item.json')
     item2feature = load_json(item2feature_path)
 
     return item2feature
@@ -111,11 +111,11 @@ def generate_item_embedding(args, item_text_list, tokenizer, model, word_drop_ra
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='music', help='music / beauty / fashion / toys /yelp')
-    parser.add_argument('--root', type=str, default="/root/autodl-tmp/data")
+    parser.add_argument('--root', type=str, default="/root/LETTER/data")
     parser.add_argument('--gpu_id', type=int, default=0, help='ID of running GPU')
     parser.add_argument('--plm_name', type=str, default='llama')
     parser.add_argument('--plm_checkpoint', type=str,
-                        default='/root/autodl-tmp/qwen7b/')
+                        default='/root/autodl-tmp/llama-7b/')
     parser.add_argument('--max_sent_len', type=int, default=2048)
     parser.add_argument('--word_drop_ratio', type=float, default=-1, help='word drop ratio, do not drop by default')
     return parser.parse_args()
@@ -132,10 +132,10 @@ if __name__ == '__main__':
 
     plm_tokenizer, plm_model = load_plm(args.plm_checkpoint)
     if plm_tokenizer.pad_token is None:
-        # plm_tokenizer.pad_token = plm_tokenizer.eos_token
-        # plm_tokenizer.pad_token_id = plm_tokenizer.eos_token_id
-        plm_tokenizer.pad_token = '<|endoftext|>'
-        plm_tokenizer.pad_token_id = 151643
+        plm_tokenizer.pad_token = plm_tokenizer.eos_token
+        plm_tokenizer.pad_token_id = plm_tokenizer.eos_token_id
+        # plm_tokenizer.pad_token = '<|endoftext|>'
+        # plm_tokenizer.pad_token_id = 151643
     plm_model = plm_model.to(device)
 
     generate_item_embedding(args, item_text_list,plm_tokenizer,

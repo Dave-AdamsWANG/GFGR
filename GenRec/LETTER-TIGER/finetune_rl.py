@@ -7,7 +7,7 @@ from typing import List
 from transformers import EarlyStoppingCallback
 from tqdm import tqdm
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SequentialSampler,Sampler
 import transformers
 from transformers import T5Tokenizer, T5Config, T5ForConditionalGeneration
 import trl
@@ -24,10 +24,11 @@ class SimpleArgs:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+
 def get_keys_by_value(my_dict, target_value):
     keys = [int(key) for key, value in my_dict.items() if value == target_value]
     if len(keys)==0:
-        keys.append(-1)
+        keys.append(0)
     elif len(keys)>1:
         keys=keys[:1]
     return keys
@@ -61,6 +62,7 @@ def train(args):
 
 
     train_data, valid_data = load_datasets(args)
+    data_indices = train_data.indices
     def data_converter(data):
         data_list = []
         for i in range(len(data)):
@@ -79,7 +81,7 @@ def train(args):
         print(train_data[100])
         print(valid_data[100])
 
-    if args.rl_type=='dpo':
+    if args.rl_type=='dpo' or args.rl_type=='grpo':
         train_data = data_converter(train_data)
         valid_data = data_converter(valid_data)
         # collator = RLCollator(args, tokenizer)
@@ -110,35 +112,87 @@ def train(args):
         # if not ddp and torch.cuda.device_count() > 1:
         #     model.is_parallelizable = True
         #     model.model_parallel = True
+        if args.rl_type=='dpo':
+            training_args = DPOConfig(
+                seed=args.seed,
+                per_device_train_batch_size=args.per_device_batch_size,
+                per_device_eval_batch_size=args.per_device_batch_size,
+                gradient_accumulation_steps=args.gradient_accumulation_steps,
+                warmup_ratio=args.warmup_ratio,
+                num_train_epochs=args.epochs,
+                learning_rate=args.learning_rate,
+                weight_decay=args.weight_decay,
+                lr_scheduler_type=args.lr_scheduler_type,
+                logging_steps=args.logging_step,
+                optim=args.optim,
+                evaluation_strategy="steps",
+                save_strategy="steps",
+                output_dir=args.output_dir,
+                save_total_limit=2,
+                report_to=[],
+                load_best_model_at_end=True,
+            )
 
-        training_args = DPOConfig(
-            seed=args.seed,
-            per_device_train_batch_size=args.per_device_batch_size,
-            per_device_eval_batch_size=args.per_device_batch_size,
-            gradient_accumulation_steps=args.gradient_accumulation_steps,
-            warmup_ratio=args.warmup_ratio,
-            num_train_epochs=args.epochs,
-            learning_rate=args.learning_rate,
-            weight_decay=args.weight_decay,
-            lr_scheduler_type=args.lr_scheduler_type,
-            logging_steps=args.logging_step,
-            optim=args.optim,
-            evaluation_strategy="steps",
-            save_strategy="steps",
-            output_dir=args.output_dir,
-            save_total_limit=2,
-            report_to=[],
-            load_best_model_at_end=True,
-        )
-
-        trainer = DPOTrainer(
-            model,
-            reference_model,
-            args=training_args,
-            train_dataset=train_data,
-            eval_dataset=valid_data,
-            processing_class=tokenizer
-        )
+            trainer = DPOTrainer(
+                model,
+                reference_model,
+                args=training_args,
+                train_dataset=train_data,
+                eval_dataset=valid_data,
+                processing_class=tokenizer
+            )
+        elif args.rl_type=='grpo':
+            from trl import GRPOConfig, GRPOTrainer
+            collab_model_args = SimpleArgs(
+                hidden_size=32,
+                num_heads=1,
+                trm_num=2,
+                dropout_rate=0.5, 
+                max_len=20,
+                )
+            from models.Bert4Rec import Bert4Rec
+            model_state_dict=torch.load(f'/root/GFGR/SeqRec/saved/{args.dataset}/bert4rec/pytorch_model.bin')
+            colab_model = Bert4Rec(1,model_state_dict['state_dict']['item_emb.weight'].shape[0]-2,device,collab_model_args)
+            colab_model.load_state_dict(model_state_dict['state_dict'])
+            colab_model.eval()
+            colab_model.to(device)
+            def reward_func(prompts,completions, ground_truth,origin_item,origin_inters,positions):
+                response_items=torch.tensor([get_keys_by_value(data_indices,i.split(' ')[1:-1]) for i in completions])
+                collab_score = colab_model.predict(torch.tensor(origin_inters).to(device),response_items.to(device),torch.tensor(positions).to(device)).sigmoid()
+                match_score = (response_items.squeeze()==torch.tensor(origin_item))
+                reward = match_score.long().to(device).squeeze()+collab_score.squeeze()
+                return reward
+                
+            training_args = GRPOConfig(
+                seed=args.seed,
+                per_device_train_batch_size=args.per_device_batch_size,
+                per_device_eval_batch_size=args.per_device_batch_size,
+                gradient_accumulation_steps=args.gradient_accumulation_steps,
+                warmup_ratio=args.warmup_ratio,
+                num_train_epochs=args.epochs,
+                learning_rate=args.learning_rate,
+                weight_decay=args.weight_decay,
+                lr_scheduler_type=args.lr_scheduler_type,
+                logging_steps=args.logging_step,
+                optim=args.optim,
+                evaluation_strategy="steps",
+                save_strategy="steps",
+                output_dir=args.output_dir,
+                save_total_limit=2,
+                report_to=[],
+                load_best_model_at_end=True,
+                max_prompt_length=1024,
+                max_completion_length=512,
+                num_generations=2
+                )
+            trainer = GRPOTrainer(
+                model=model,
+                reward_funcs=reward_func,
+                args=training_args,
+                train_dataset=train_data,
+                eval_dataset=valid_data,
+                processing_class=tokenizer
+            )
 
         model.config.use_cache = False
 
@@ -160,7 +214,7 @@ def train(args):
         ))
         model.is_peft_model=False
         collator = RLCollator(args,tokenizer)
-        train_loader = DataLoader(train_data,collate_fn=collator,batch_size=args.per_device_batch_size)
+        train_loader = DataLoader(train_data,collate_fn=collator,batch_size=args.per_device_batch_size,drop_last=True)
         collab_model_args = SimpleArgs(
             hidden_size=32,
             num_heads=1,
@@ -171,7 +225,6 @@ def train(args):
         from models.Bert4Rec import Bert4Rec
         model_state_dict=torch.load(f'/root/GFGR/SeqRec/saved/{args.dataset}/bert4rec/pytorch_model.bin')
         colab_model = Bert4Rec(1,model_state_dict['state_dict']['item_emb.weight'].shape[0]-2,device,collab_model_args)
-        print(model_state_dict['state_dict']['item_emb.weight'].shape[0]-2)
         colab_model.load_state_dict(model_state_dict['state_dict'])
         colab_model.eval()
         colab_model.to(device)
@@ -189,11 +242,10 @@ def train(args):
                 response_tensor=model.generate(input_ids=query_tensor,attention_mask=batch['inputs']['attention_mask'].to(device))
                 decoded_response=[tokenizer.decode(i[1:-1]).split(' ') for i in response_tensor]
                 response_items=torch.tensor([get_keys_by_value(train_data.indices,i) for i in decoded_response])
-                print(batch['origin_inters'].max())
                 collab_score = colab_model.predict(batch['origin_inters'].to(device),response_items.to(device),batch['positions'].to(device)).sigmoid()
                 reward = (response_items.squeeze()==batch['origin_item']).long().to(device).squeeze()+collab_score.squeeze()
                 train_stats = ppo_trainer.step(list(query_tensor.unbind(dim=0)), list(response_tensor.unbind(dim=0)), list(reward.unbind(dim=0)))
-            save_dir = os.path.join(args.output_dir,epoch)
+            save_dir = os.path.join(args.output_dir,f'epoch{epoch}')
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             ppo_trainer.save_pretrained(save_directory=save_dir)

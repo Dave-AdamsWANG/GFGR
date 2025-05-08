@@ -180,7 +180,7 @@ class SeqRecDataset(BaseDataset):
                 else:
                     mask_len = self.max_his_len - history_len
                     positions = list(range(1, history_len+1))
-                    origin_seq = np.zeros([self.max_his_len], dtype=np.int32)
+                    origin_seq = np.zeros([self.max_his_len], dtype=np.int64)
                     origin_seq[-history_len:] = origin_history
                     origin_history = origin_seq
                 positions= positions[-self.max_his_len:]
@@ -223,7 +223,7 @@ class SeqRecDataset(BaseDataset):
                 else:
                     mask_len = self.max_his_len - history_len
                     positions = list(range(1, history_len+1))
-                    origin_seq = np.zeros([self.max_his_len], dtype=np.int32)
+                    origin_seq = np.zeros([self.max_his_len], dtype=np.int64)
                     origin_seq[-history_len:] = origin_history
                     origin_history = origin_seq
                 positions= positions[-self.max_his_len:]
@@ -261,7 +261,7 @@ class SeqRecDataset(BaseDataset):
                 else:
                     mask_len = self.max_his_len - history_len
                     positions = list(range(1, history_len+1))
-                    origin_seq = np.zeros([self.max_his_len], dtype=np.int32)
+                    origin_seq = np.zeros([self.max_his_len], dtype=np.int64)
                     origin_seq[-history_len:] = origin_history
                     origin_history = origin_seq
                 positions= positions[-self.max_his_len:]
@@ -302,7 +302,7 @@ class SeqRecDataset(BaseDataset):
                 else:
                     mask_len = self.max_his_len - history_len
                     positions = list(range(1, history_len+1))
-                    origin_seq = np.zeros([self.max_his_len], dtype=np.int32)
+                    origin_seq = np.zeros([self.max_his_len], dtype=np.int64)
                     origin_seq[-history_len:] = origin_history
                     origin_history = origin_seq
                 positions= positions[-self.max_his_len:]
@@ -343,7 +343,7 @@ class SeqRecDataset(BaseDataset):
                 else:
                     mask_len = self.max_his_len - history_len
                     positions = list(range(1, history_len+1))
-                    origin_seq = np.zeros([self.max_his_len], dtype=np.int32)
+                    origin_seq = np.zeros([self.max_his_len], dtype=np.int64)
                     origin_seq[-history_len:] = origin_history
                     origin_history = origin_seq
                 positions= positions[-self.max_his_len:]

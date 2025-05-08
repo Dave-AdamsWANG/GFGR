@@ -1,14 +1,14 @@
 #!/bin/bash
 
 gpu_id=0
-dataset_list=("music" "yelp")
+dataset_list=("Instruments" "Beauty" "Yelp")
 
 
-# for dataset in "${dataset_list[@]}"
-# do
-#     python data_process/amazon_text_emb.py --dataset ${dataset} 
-#     python data_process/pca.py --dataset ${dataset} 
-# done
+for dataset in "${dataset_list[@]}"
+do
+    # python data_process/amazon_text_emb.py --dataset ${dataset} 
+    python data_process/pca.py --dataset ${dataset} 
+done
 
 
 bash RQ-VAE/train_tokenizer.sh #&& /usr/bin/shutdown
