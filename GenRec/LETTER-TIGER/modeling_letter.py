@@ -260,6 +260,9 @@ class LETTER(T5ForConditionalGeneration):
         self.collab_align=args.collab_align
         self.reward_res = args.reward_res
         self.align_weight=args.align_weight
+        self.reverse_weight=True
+        if args.dataset=='Yelp':
+            self.reverse_weight=False
         if self.collab_reward: 
             self.collab_model_name=args.collab_model_name
             self.collab_model_path=args.collab_model_path
@@ -375,7 +378,10 @@ class LETTER(T5ForConditionalGeneration):
             if self.collab_align:
                 self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,1].reshape(-1,1))
             if self.reward_weigted_loss:
-                weight = F.softmax(1/(reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2,dim=0)*B
+                if self.reverse_weight:
+                    weight = F.softmax(1/(reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2,dim=0)*B
+                else:
+                    weight = F.softmax((reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2,dim=0)*B
                 self.align_loss=((weight)*self.align_loss).mean()
             if isinstance(self.align_loss, torch.Tensor):
                 self.align_loss=self.align_loss.mean()

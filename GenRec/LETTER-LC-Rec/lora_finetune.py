@@ -4,7 +4,6 @@ import sys
 from typing import List
 # import wandb
 import torch
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 from modeling_letter import LETTER
 from fastchat.train.llama2_flash_attn_monkey_patch import (
     replace_llama_attn_with_flash_attn,
@@ -19,7 +18,7 @@ from peft import (
     TaskType,
     LoraConfig,
     get_peft_model,
-    prepare_model_for_int8_training,
+    prepare_model_for_kbit_training,
     set_peft_model_state_dict,
 )
 from transformers import LlamaForCausalLM, LlamaTokenizer, LlamaConfig
@@ -69,7 +68,7 @@ def train(args):
     model.set_hyper(args.temperature)
     model.resize_token_embeddings(len(tokenizer))
 
-    model = prepare_model_for_int8_training(model)
+    model = prepare_model_for_kbit_training(model)
     config = LoraConfig(
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
@@ -123,7 +122,7 @@ def train(args):
             learning_rate=args.learning_rate,
             weight_decay=args.weight_decay,
             lr_scheduler_type=args.lr_scheduler_type,
-            report_to=['wandb'],
+            report_to=[],
             fp16=args.fp16,
             bf16=args.bf16,
             logging_steps=args.logging_step,
@@ -136,7 +135,7 @@ def train(args):
             output_dir=args.output_dir,
             save_total_limit=1,
             load_best_model_at_end=True,
-            deepspeed=args.deepspeed,
+            # deepspeed=args.deepspeed,
             ddp_find_unused_parameters=False if ddp else None,
             # report_to=None,
             eval_delay=1 if args.save_and_eval_strategy=="epoch" else 2000,
