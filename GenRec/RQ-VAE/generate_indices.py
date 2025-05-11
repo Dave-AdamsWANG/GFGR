@@ -60,6 +60,7 @@ ckpt_path = args_setting.root_path+args_setting.checkpoint
 
 output_dir = f"/root/autodl-tmp/data/{dataset}/"
 output_file = f"{dataset}.index.epoch{args_setting.epoch}.alpha{args_setting.alpha}-beta{args_setting.beta}.json"
+os.makedirs(output_dir, exist_ok=True)
 output_file = os.path.join(output_dir,output_file)
 device = torch.device("cuda:0")
 
@@ -148,12 +149,14 @@ tt = 0
 origin_len = all_indices.shape[-1]
 add_max=0
 #There are often duplicate items in the dataset, and we no longer differentiate them
+if all_indices.shape[-1] < origin_len+1:
+    all_indices = np.c_[all_indices,np.repeat(prefix[all_indices.shape[-1]].format(0), all_indices.shape[0]).reshape(-1, 1)]
 while True:
-    if tt >= 20 or check_collision(all_indices_str):
+    if check_collision(all_indices_str):
         break
-
+# tt >= 20 or
     collision_item_groups = get_collision_item(all_indices_str)
-    print(collision_item_groups)
+    # print(collision_item_groups)
     print(len(collision_item_groups))
     all_indices_new = {}
     for collision_items in collision_item_groups:
@@ -164,24 +167,27 @@ while True:
         # indices = model.get_indices(d, use_sk=True)
         indices = indices.view(-1, indices.shape[-1]).cpu().numpy()
         collision_num = len(collision_items)
-        add_max = max(add_max,collision_num)
         for i, (item, index) in enumerate(zip(collision_items, indices)):
             code = []
             for j, ind in enumerate(index):
                 code.append(prefix[j].format(int(ind)))
-            if tt==0:
+            if i>0:
+                if tt==0:
+                    code.append(prefix[origin_len].format(int(i)))
+                else: 
+                    code.append(prefix[origin_len].format(int(i+add_max)))
+            else:
                 code.append(prefix[origin_len].format(int(i)))
-            else: 
-                code.append(prefix[origin_len].format(int(i+add_max)))
             all_indices_new[item] = code
-        if tt>0:
-            add_max+= collision_num
-    if all_indices.shape[-1] < origin_len+1:
-        all_indices = np.c_[all_indices,np.repeat(prefix[all_indices.shape[-1]].format(0), all_indices.shape[0]).reshape(-1, 1)]
+        add_max += collision_num
+            
     for key in all_indices_new:
         all_indices[key] = all_indices_new[key]
     all_indices_str = np.array([str(i) for i in all_indices])
     tt += 1
+    if tt%8==5:
+        origin_len+=1
+        add_max=0
 
 
 print("All indices number: ",len(all_indices))
