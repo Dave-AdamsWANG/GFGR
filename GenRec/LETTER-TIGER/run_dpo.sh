@@ -12,6 +12,8 @@ data_list=("Beauty" "Yelp")
 rl_type=sprec
 for DATASET in ${data_list[@]}
 do
+for seed in ${seed_list[@]}
+do
 #CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/TIGER/$rl_type
 CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/$rl_type
 # CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/$rl_type/epoch0
@@ -20,9 +22,7 @@ ORG_CKPT_DIR=/root/autodl-tmp/org_chkpt/ckpt/$DATASET
 # ORG_CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/gfn/1/0.1/
 # RESULTS_FILE=/root/autodl-tmp/results/$DATASET/$rl_type/TIGER/
 RESULTS_FILE=/root/autodl-tmp/results/$DATASET/$rl_type/
-its=2
-for seed in ${seed_list[@]}
-do
+its=3
     for ((i=0;i<$its;i++))
     do
     python ./generate_data.py \
@@ -61,3 +61,19 @@ do
         --index_file .index.json
 done
 done
+
+
+# i=0
+# CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/$rl_type/$i
+# python ./finetune_rl.py \
+#     --output_dir $CKPT_DIR \
+#     --rl_ckpt_path $ORG_CKPT_DIR\
+#     --rl_type $rl_type\
+#     --dataset $DATASET \
+#     --per_device_batch_size 256 \
+#     --data_path $DATA_PATH \
+#     --learning_rate 1e-5 \
+#     --epochs 1 \
+#     --index_file .index.json \
+#     --temperature 1.0 \
+#     --seed ${seed}

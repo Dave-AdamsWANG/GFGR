@@ -410,6 +410,17 @@ def train(args):
                 eval_dataset=valid_data,
                 processing_class=tokenizer
             )
+        model.config.use_cache = False
+
+
+        trainer.train(
+            resume_from_checkpoint=args.resume_from_checkpoint,
+        )
+
+        trainer.save_state()
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir)
+        trainer.save_model(output_dir=args.output_dir)
     else:
         raise ValueError("Undefined RL Type") 
 
