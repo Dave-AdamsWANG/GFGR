@@ -193,8 +193,10 @@ def main(args):
                 if args.rl_type=='sprec':
                     new_rej = get_topk_results(predictions, scores, batch['chosen'], args.num_beams, all_items=all_items)
                 elif args.rl_type=='ipa':
-                    response_items=torch.tensor([get_keys_by_value(indices,i.split(" ")) for i in output]).to(device) 
-                    collab_score = colab_model.predict(torch.stack(batch['origin_inters'],0).to(device),response_items.reshape(-1,args.num_beams),torch.stack(batch['positions'],0).to(device)).sigmoid().flatten()
+                    response_items=torch.tensor([get_keys_by_value(indices,i.split(" ")) for i in output]).to(device).reshape(-1,args.num_beams)
+                    history=torch.stack(batch['origin_inters'],0).to(device).transpose(0,1)
+                    positions=torch.stack(batch['positions'],0).to(device).transpose(0,1)
+                    collab_score = colab_model.predict(history,response_items,positions).sigmoid().flatten()
                     new_rej = get_topk_results(predictions, collab_score, batch['chosen'], args.num_beams, all_items=all_items)
                 batch['rejected'] = new_rej
                 for key in new_data.keys():
