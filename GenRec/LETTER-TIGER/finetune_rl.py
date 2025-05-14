@@ -214,14 +214,18 @@ def train(args):
                 load_best_model_at_end=True,
             )       
             from sdpotrainer import DPOTrainer
-            trainer = DPOTrainer(
-                model,
+            trainer =  DPOTrainer(
+                base_model,
                 reference_model,
                 args=training_args,
+                beta=beta,
                 train_dataset=train_data,
-                eval_dataset=valid_data,
-                tokenizer=tokenizer
+                eval_dataset=val_data,
+                tokenizer=tokenizer,
+                max_prompt_length=cutoff_len,
+                max_length=cutoff_len,
             )
+
         elif args.rl_type=='grpo':
             from trl import GRPOConfig, GRPOTrainer
             collab_model_args = SimpleArgs(
