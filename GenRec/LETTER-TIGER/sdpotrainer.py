@@ -39,7 +39,7 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerBas
 
 
 def is_peft_available():
-    return importlib.util.find_spec("peft") is not None
+    return False# importlib.util.find_spec("peft") is not None
 
 if is_peft_available():
     from peft import get_peft_model, prepare_model_for_int8_training
@@ -178,7 +178,7 @@ class DPOTrainer(Trainer):
             data_collator=data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            processing_class=tokenizer,
+            tokenizer=tokenizer,
             model_init=model_init,
             callbacks=callbacks,
             optimizers=optimizers,
@@ -315,13 +315,14 @@ class DPOTrainer(Trainer):
         """
         concatenated_batch = self.concatenated_inputs(batch)
         # print(concatenated_batch["concatenated_input_ids"].shape)
+        label_len = (concatenated_batch["concatenated_labels"]==self.label_pad_token_id).long()
         all_logits = model(
-            concatenated_batch["concatenated_input_ids"],
-            attention_mask=concatenated_batch["concatenated_attention_mask"],
-        ).logits.to(torch.float32)
+            input_ids=concatenated_batch["concatenated_input_ids"][:,:label_len], attention_mask=concatenated_batch["concatenated_attention_mask"][:,:label_len],
+            labels=concatenated_batch["concatenated_input_ids"][:,label_len:],cal_loss=False
+            ).logits.to(torch.float32)
         all_logps = self._get_batch_logps(
             all_logits,
-            concatenated_batch["concatenated_labels"],
+            concatenated_batch["concatenated_input_ids"][:,label_len:],
             average_log_prob=False,
         )
         chosen_logps = all_logps[: batch["chosen_input_ids"].shape[0]]
@@ -556,8 +557,9 @@ class DPODataCollatorWithPadding:
         prompt_tokens = self.tokenizer(prompt, add_special_tokens=False)
         rejected_tokens = {}
         for key in rejected:
+            print(rejected[key])
             rejected_tokens[key] = self.tokenizer(rejected[key], add_special_tokens=False)
-            
+        
         assert self.tokenizer.eos_token_id not in prompt_tokens["input_ids"], f"Prompt contains EOS token: {prompt}"
         assert (
             self.tokenizer.eos_token_id not in chosen_tokens["input_ids"]
