@@ -233,7 +233,7 @@ class SeqRecDataset(BaseDataset):
                     history = [str(k+1) + ". " + item_idx for k, item_idx in enumerate(history)]
                 one_data["inters"] = "".join(history)
                 one_data["origin_inters"] = origin_history
-                if self.rl_type=='dpo':
+                if self.rl_type in ['dpo','sdpo']:
                     neg_items = random_neq(all_items,nonneg_items,neg_num=1)
                     one_data["origin_neg"] = neg_items
                     one_data["neg"] = ["".join(self.indices[str(i)]) for i in neg_items] 
@@ -312,7 +312,7 @@ class SeqRecDataset(BaseDataset):
                 history = [str(k + 1) + ". " + item_idx for k, item_idx in enumerate(history)]
             one_data["inters"] = "".join(history)
             one_data["origin_inters"] = origin_history
-            if self.rl_type=='dpo':
+            if self.rl_type in ['dpo','sdpo']:
                 neg_items = random_neq(all_items,origin_items,neg_num=1)
                 one_data["origin_neg"] = neg_items
                 one_data["neg"] = ["".join(self.indices[str(i)]) for i in neg_items] 
@@ -402,7 +402,7 @@ class SeqRecDataset(BaseDataset):
 
         d = self.inter_data[index]
         if hasattr(self,'rl_type'):
-            if self.rl_type in ['dpo','ipa','sprec','sdpo']:
+            if self.rl_type in ['dpo','ipa','sprec']:
                 return dict(prompt=d["inters"], chosen=d["item"],rejected=d["neg"][0],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
             elif self.rl_type=='sdpo':
                 res = dict(prompt=d["inters"], chosen=d["item"],rejected=[0],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
