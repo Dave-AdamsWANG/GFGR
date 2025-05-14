@@ -193,7 +193,7 @@ def train(args):
                 args=training_args,
                 train_dataset=train_data,
                 eval_dataset=valid_data,
-                processing_class=tokenizer
+                tokenizer=tokenizer
             )
         elif args.rl_type=='grpo':
             from trl import GRPOConfig, GRPOTrainer
