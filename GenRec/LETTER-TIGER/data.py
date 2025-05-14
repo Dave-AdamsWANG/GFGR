@@ -402,7 +402,7 @@ class SeqRecDataset(BaseDataset):
 
         d = self.inter_data[index]
         if hasattr(self,'rl_type'):
-            if self.rl_type in ['dpo','ipa','sprec']:
+            if self.rl_type in ['dpo','ipa','sprec','sdpo']:
                 return dict(prompt=d["inters"], chosen=d["item"],rejected=d["neg"][0],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
             elif self.rl_type in ['grpo','ppo']:
                 return dict(prompt=d["inters"], ground_truth=d["item"],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])

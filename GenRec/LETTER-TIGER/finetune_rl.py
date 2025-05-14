@@ -9,7 +9,7 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader, SequentialSampler,Sampler
 import transformers
-from transformers import T5Tokenizer, T5Config, T5ForConditionalGeneration
+from transformers import T5Tokenizer, T5Config, T5ForConditionalGeneration, TrainingArguments
 import trl
 from trl import DPOTrainer, DPOConfig, PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead, create_reference_model
 
@@ -92,7 +92,7 @@ def train(args):
         tokenizer.save_pretrained(args.output_dir)
         config.save_pretrained(args.output_dir)
 
-    if args.rl_type in ['dpo','grpo']:
+    if args.rl_type in ['dpo','grpo','sdpo']:
         train_data, valid_data = load_datasets(args)
         def data_converter(data):
             data_list = []
@@ -155,6 +155,38 @@ def train(args):
                 load_best_model_at_end=True,
             )
 
+            trainer = DPOTrainer(
+                model,
+                reference_model,
+                args=training_args,
+                train_dataset=train_data,
+                eval_dataset=valid_data,
+                processing_class=tokenizer
+            )
+        elif args.rl_type=='sdpo':
+            training_args = TrainingArguments(
+                seed=args.seed,
+                per_device_train_batch_size=args.per_device_batch_size,
+                per_device_eval_batch_size=args.per_device_batch_size,
+                gradient_accumulation_steps=args.gradient_accumulation_steps,
+                warmup_ratio=args.warmup_ratio,
+                num_train_epochs=args.epochs,
+                evaluation_strategy=args.save_and_eval_strategy,
+                save_strategy=args.save_and_eval_strategy,
+                eval_steps=args.save_and_eval_steps,
+                save_steps=args.save_and_eval_steps,
+                learning_rate=args.learning_rate,
+                weight_decay=args.weight_decay,
+                lr_scheduler_type=args.lr_scheduler_type,
+                logging_steps=args.logging_step,
+                optim=args.optim,
+                output_dir=args.output_dir,
+                save_total_limit=2,
+                max_completion_length=6,
+                report_to=[],
+                load_best_model_at_end=True,
+            )
+            from sdpotrainer import DPOTrainer
             trainer = DPOTrainer(
                 model,
                 reference_model,
@@ -230,7 +262,7 @@ def train(args):
             os.makedirs(args.output_dir)
         trainer.save_model(output_dir=args.output_dir)
     elif args.rl_type=='ppo':
-
+        train_data, valid_data = load_datasets(args)
         model = trl.AutoModelForSeq2SeqLMWithValueHead(T5ForConditionalGeneration.from_pretrained(
             args.rl_ckpt_path,
             low_cpu_mem_usage=True,
@@ -272,13 +304,13 @@ def train(args):
                     output_scores=False,
                     return_dict_in_generate=True,
                     early_stopping=True,)
-                output_ids = output["sequences"]
+                output_ids = response_tensor["sequences"]
                 output = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
                 predictions = [_.strip().split(" ") for _ in output]
                 response_items=torch.tensor([get_keys_by_value(train_data.indices,i) for i in predictions])
                 collab_score = colab_model.predict(batch['origin_inters'].to(device),response_items.to(device),batch['positions'].to(device)).sigmoid()
                 reward = (response_items.squeeze()==batch['origin_item']).long().to(device).squeeze()+collab_score.squeeze()
-                train_stats = ppo_trainer.step(list(query_tensor.unbind(dim=0)), list(response_tensor.unbind(dim=0)), list(reward.unbind(dim=0)))
+                train_stats = ppo_trainer.step(list(query_tensor.unbind(dim=0)), list(output_ids.unbind(dim=0)), list(reward.unbind(dim=0)))
             save_dir = os.path.join(args.output_dir,f'epoch{epoch}')
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
