@@ -408,7 +408,7 @@ def train(args):
                 args=training_args,
                 train_dataset=train_data,
                 eval_dataset=valid_data,
-                processing_class=tokenizer
+                tokenizer=tokenizer
             )
         model.config.use_cache = False
 

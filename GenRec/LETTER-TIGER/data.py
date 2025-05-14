@@ -405,7 +405,7 @@ class SeqRecDataset(BaseDataset):
             if self.rl_type in ['dpo','ipa','sprec']:
                 return dict(prompt=d["inters"], chosen=d["item"],rejected=d["neg"][0],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
             elif self.rl_type=='sdpo':
-                res = dict(prompt=d["inters"], chosen=d["item"],rejected=[0],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
+                res = dict(prompt=d["inters"], chosen=d["item"],origin_item=d["origin_item"],origin_inters=d["origin_inters"],positions=d["positions"])
                 cnt = 0  
                 for rejected in d["neg"]:
                     cnt += 1
