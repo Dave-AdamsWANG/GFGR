@@ -164,7 +164,7 @@ def train(args):
                 processing_class=tokenizer
             )
         elif args.rl_type=='sdpo':
-            training_args = TrainingArguments(
+            training_args = DPOConfig(
                 seed=args.seed,
                 per_device_train_batch_size=args.per_device_batch_size,
                 per_device_eval_batch_size=args.per_device_batch_size,
