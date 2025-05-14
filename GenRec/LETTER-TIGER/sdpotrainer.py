@@ -315,13 +315,14 @@ class DPOTrainer(Trainer):
         """
         concatenated_batch = self.concatenated_inputs(batch)
         # print(concatenated_batch["concatenated_input_ids"].shape)
+        label_len = (concatenated_batch["concatenated_labels"]==self.label_pad_token_id).long()
         all_logits = model(
-            concatenated_batch["concatenated_input_ids"],
-            attention_mask=concatenated_batch["concatenated_attention_mask"],
-        ).logits.to(torch.float32)
+            input_ids=concatenated_batch["concatenated_input_ids"][:,:label_len], attention_mask=concatenated_batch["concatenated_attention_mask"][:,:label_len],
+            labels=concatenated_batch["concatenated_input_ids"][:,label_len:],cal_loss=False
+            ).logits.to(torch.float32)
         all_logps = self._get_batch_logps(
             all_logits,
-            concatenated_batch["concatenated_labels"],
+            concatenated_batch["concatenated_input_ids"][:,label_len:],
             average_log_prob=False,
         )
         chosen_logps = all_logps[: batch["chosen_input_ids"].shape[0]]
