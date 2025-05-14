@@ -9,8 +9,8 @@ OUTPUT_DIR=./ckpt/$DATASET/
 
 DATA_PATH=/root/LETTER/data
 DATASET="Beauty"
-CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/
-RESULTS_FILE=/root/autodl-tmp/results/$DATASET/
+CKPT_DIR=/root/autodl-tmp/ckpt/$DATASET/LC-Rec
+RESULTS_FILE=/root/autodl-tmp/results/$DATASET/LC-Rec
 
 
 python  lora_finetune.py \
