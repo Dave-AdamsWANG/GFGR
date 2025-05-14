@@ -19,10 +19,29 @@ from modeling_letter import LETTER
 from utils import *
 from collator import RLCollator
 
+
+
+
 class SimpleArgs:
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+def get_new_tokens(indices):
+    new_tokens = set()
+    for index in indices.values():
+        for token in index:
+            new_tokens.add(token)
+    new_tokens = sorted(list(new_tokens))
+
+    return new_tokens
+
+def get_all_items(indices):
+    all_items = set()
+    for index in indices.values():
+        all_items.add("".join(index))
+
+    return all_items
 
 
 def get_keys_by_value(my_dict, target_value):
@@ -59,31 +78,31 @@ def train(args):
     )
     args.deepspeed = None
     gradient_checkpointing= False
+    with open(os.path.join(os.path.join(args.data_path, args.dataset), args.dataset + args.index_file), 'r') as f:
+        data_indices = json.load(f)
 
 
-    train_data, valid_data = load_datasets(args)
-    data_indices = train_data.indices
-    def data_converter(data):
-        data_list = []
-        for i in range(len(data)):
-            data_list.append(data[i])
-        data_dict = {key: [item[key] for item in data_list] for key in data_list[0].keys()}
-        return Dataset.from_dict(data_dict)
+    
 
-    add_num = tokenizer.add_tokens(train_data.get_new_tokens())
+    add_num = tokenizer.add_tokens(get_new_tokens(data_indices))
 
     config.vocab_size = len(tokenizer)
     if local_rank == 0:
         print("add {} new token.".format(add_num))
-        print("data num:", len(train_data))
         tokenizer.save_pretrained(args.output_dir)
         config.save_pretrained(args.output_dir)
-        print(train_data[100])
-        print(valid_data[100])
 
-    if args.rl_type=='dpo' or args.rl_type=='grpo':
+    if args.rl_type in ['dpo','grpo']:
+        train_data, valid_data = load_datasets(args)
+        def data_converter(data):
+            data_list = []
+            for i in range(len(data)):
+                data_list.append(data[i])
+            data_dict = {key: [item[key] for item in data_list] for key in data_list[0].keys()}
+            return Dataset.from_dict(data_dict)
         train_data = data_converter(train_data)
         valid_data = data_converter(valid_data)
+
         # collator = RLCollator(args, tokenizer)
         if args.pretrained:
             model = T5ForConditionalGeneration.from_pretrained(
@@ -187,7 +206,7 @@ def train(args):
                 report_to=[],
                 load_best_model_at_end=True,
                 max_prompt_length=1024,
-                max_completion_length=6,
+                max_completion_length=7,
                 num_generations=2
                 )
             trainer = GRPOTrainer(
@@ -244,9 +263,19 @@ def train(args):
             prog_iter = tqdm(train_loader, leave=False, desc='Training')
             for batch in prog_iter:
                 query_tensor=batch['inputs']['input_ids'].to(device)
-                response_tensor=model.generate(input_ids=query_tensor,attention_mask=batch['inputs']['attention_mask'].to(device))
-                decoded_response=[tokenizer.decode(i[1:-1]).split(' ') for i in response_tensor]
-                response_items=torch.tensor([get_keys_by_value(train_data.indices,i) for i in decoded_response])
+                response_tensor=model.generate(input_ids=query_tensor,
+                    attention_mask=batch['inputs']['attention_mask'].to(device),
+                    max_new_tokens=10,
+                    # max_length=10,
+                    num_beams=1,
+                    num_return_sequences=1,
+                    output_scores=False,
+                    return_dict_in_generate=True,
+                    early_stopping=True,)
+                output_ids = output["sequences"]
+                output = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
+                predictions = [_.strip().split(" ") for _ in output]
+                response_items=torch.tensor([get_keys_by_value(train_data.indices,i) for i in predictions])
                 collab_score = colab_model.predict(batch['origin_inters'].to(device),response_items.to(device),batch['positions'].to(device)).sigmoid()
                 reward = (response_items.squeeze()==batch['origin_item']).long().to(device).squeeze()+collab_score.squeeze()
                 train_stats = ppo_trainer.step(list(query_tensor.unbind(dim=0)), list(response_tensor.unbind(dim=0)), list(reward.unbind(dim=0)))
@@ -254,7 +283,71 @@ def train(args):
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             ppo_trainer.save_pretrained(save_directory=save_dir)
- 
+    elif args.rl_type in ['sprec','ipa']:
+        if 'new' in args.index_file:
+            train_json_file = f"/root/LETTER/data/{args.dataset}/dpo/new-train0.json"
+            valid_json_file = f"/root/LETTER/data/{args.dataset}/dpo/new-valid0.json"
+        else:
+            train_json_file = f"/root/LETTER/data/{args.dataset}/dpo/train0.json"
+            valid_json_file = f"/root/LETTER/data/{args.dataset}/dpo/valid0.json"
+        from datasets import load_dataset
+        train_dataset = load_dataset("json", data_files=train_json_file)
+        train_data = train_dataset["train"]
+        valid_dataset = load_dataset("json", data_files=valid_json_file)
+        valid_data = valid_dataset["train"]
+        if args.pretrained:
+            model = T5ForConditionalGeneration.from_pretrained(
+                args.rl_ckpt_path,
+                low_cpu_mem_usage=True,
+                device_map=device_map,
+            )
+            reference_model = T5ForConditionalGeneration.from_pretrained(
+                args.rl_ckpt_path,
+                low_cpu_mem_usage=True,
+                device_map=device_map,
+            )
+        else:
+            model = LETTER(config)
+            model.set_hyper(args.temperature)
+            model.resize_token_embeddings(len(tokenizer))
+            model.to(device)
+            reference_model = LETTER(config)
+            reference_model.set_hyper(args.temperature)
+            reference_model.resize_token_embeddings(len(tokenizer))
+            reference_model.to(device)
+        if local_rank == 0:
+            print(model)
+        training_args = DPOConfig(
+            seed=args.seed,
+            per_device_train_batch_size=args.per_device_batch_size,
+            per_device_eval_batch_size=args.per_device_batch_size,
+            gradient_accumulation_steps=args.gradient_accumulation_steps,
+            warmup_ratio=args.warmup_ratio,
+            num_train_epochs=args.epochs,
+            evaluation_strategy=args.save_and_eval_strategy,
+            save_strategy=args.save_and_eval_strategy,
+            eval_steps=args.save_and_eval_steps,
+            save_steps=args.save_and_eval_steps,
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+            lr_scheduler_type=args.lr_scheduler_type,
+            logging_steps=args.logging_step,
+            optim=args.optim,
+            output_dir=args.output_dir,
+            save_total_limit=2,
+            max_completion_length=6,
+            report_to=[],
+            load_best_model_at_end=True,
+        )
+
+        trainer = DPOTrainer(
+                model,
+                reference_model,
+                args=training_args,
+                train_dataset=train_data,
+                eval_dataset=valid_data,
+                processing_class=tokenizer
+            )
     else:
         raise ValueError("Undefined RL Type") 
 

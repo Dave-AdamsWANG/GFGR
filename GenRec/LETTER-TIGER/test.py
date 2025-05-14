@@ -45,7 +45,6 @@ def test(args):
         device_map=device_map,
     )
 
-    prompt_ids = [0]
 
     test_data = load_test_dataset(args)
 
@@ -72,65 +71,60 @@ def test(args):
     metrics = args.metrics.split(",")
     all_prompt_results = []
     with torch.no_grad():
-        for prompt_id in prompt_ids:
+        test_loader.dataset.set_prompt(0)
+        metrics_results = {}
+        total = 0
+        for step, batch in enumerate(tqdm(test_loader)):
+            inputs = batch[0].to(device)
+            targets = batch[1]
+            total += len(targets)
+            if step == 0:
+                print(inputs)
+                print(targets)
+            output = model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                max_new_tokens=10,
+                # max_length=10,
+                prefix_allowed_tokens_fn=prefix_allowed_tokens,
+                num_beams=args.num_beams,
+                num_return_sequences=args.num_beams,
+                output_scores=True,
+                return_dict_in_generate=True,
+                early_stopping=True,
+            )
+            output_ids = output["sequences"]
+            scores = output["sequences_scores"]
 
-            
-            test_loader.dataset.set_prompt(prompt_id)
-            metrics_results = {}
-            total = 0
+            output = tokenizer.batch_decode(
+                output_ids, skip_special_tokens=True
+            )
 
-            for step, batch in enumerate(tqdm(test_loader)):
-                inputs = batch[0].to(device)
-                targets = batch[1]
-                total += len(targets)
-                if step == 0:
-                    print(inputs)
-                    print(targets)
+            topk_res = get_topk_results(output,scores,targets,args.num_beams,
+                                        all_items=all_items if args.filter_items else None)
 
-                output = model.generate(
-                    input_ids=inputs["input_ids"],
-                    attention_mask=inputs["attention_mask"],
-                    max_new_tokens=10,
-                    # max_length=10,
-                    prefix_allowed_tokens_fn=prefix_allowed_tokens,
-                    num_beams=args.num_beams,
-                    num_return_sequences=args.num_beams,
-                    output_scores=True,
-                    return_dict_in_generate=True,
-                    early_stopping=True,
-                )
-                output_ids = output["sequences"]
-                scores = output["sequences_scores"]
+            batch_metrics_res = get_metrics_results(topk_res, metrics)
+            # print(batch_metrics_res)
 
-                output = tokenizer.batch_decode(
-                    output_ids, skip_special_tokens=True
-                )
+            for m, res in batch_metrics_res.items():
+                if m not in metrics_results:
+                    metrics_results[m] = res
+                else:
+                    metrics_results[m] += res
 
-                topk_res = get_topk_results(output,scores,targets,args.num_beams,
-                                            all_items=all_items if args.filter_items else None)
-
-                batch_metrics_res = get_metrics_results(topk_res, metrics)
-                # print(batch_metrics_res)
-
-                for m, res in batch_metrics_res.items():
-                    if m not in metrics_results:
-                        metrics_results[m] = res
-                    else:
-                        metrics_results[m] += res
-
-                # if (step+1)%10 == 0:
-                temp={}
-                for m in metrics_results:
-                    temp[m] = metrics_results[m] / total
-                print(temp)
-
+            # if (step+1)%10 == 0:
+            temp={}
             for m in metrics_results:
-                metrics_results[m] = metrics_results[m] / total
-            all_prompt_results.append(metrics_results)
-            print("======================================================")
-            print("Prompt {} results: ".format(prompt_id), metrics_results)
-            print("======================================================")
-            print("")
+                temp[m] = metrics_results[m] / total
+            print(temp)
+
+        for m in metrics_results:
+            metrics_results[m] = metrics_results[m] / total
+        all_prompt_results.append(metrics_results)
+        # print("======================================================")
+        # print("Prompt {} results: ".format(prompt_id), metrics_results)
+        # print("======================================================")
+        # print("")
 
     mean_results = {}
     min_results = {}
@@ -157,7 +151,7 @@ def test(args):
     # save_data["all_prompt_results"] = all_prompt_results
 
     ensure_dir(args.results_file)
-    with open(args.results_file+'res.json', "a") as f:
+    with open(args.results_file+'/res.json', "a") as f:
         json.dump(save_data, f, indent=4)
         json.dump(vars(args),f,indent=4)
 
