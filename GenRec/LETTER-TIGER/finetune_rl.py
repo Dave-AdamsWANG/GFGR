@@ -164,28 +164,33 @@ def train(args):
                 processing_class=tokenizer
             )
         elif args.rl_type=='sdpo':
-            training_args = DPOConfig(
-                seed=args.seed,
-                per_device_train_batch_size=args.per_device_batch_size,
-                per_device_eval_batch_size=args.per_device_batch_size,
-                gradient_accumulation_steps=args.gradient_accumulation_steps,
-                warmup_ratio=args.warmup_ratio,
-                num_train_epochs=args.epochs,
-                evaluation_strategy=args.save_and_eval_strategy,
-                save_strategy=args.save_and_eval_strategy,
-                eval_steps=args.save_and_eval_steps,
-                save_steps=args.save_and_eval_steps,
-                learning_rate=args.learning_rate,
-                weight_decay=args.weight_decay,
-                lr_scheduler_type=args.lr_scheduler_type,
-                logging_steps=args.logging_step,
-                optim=args.optim,
-                output_dir=args.output_dir,
-                save_total_limit=2,
-                max_completion_length=6,
-                report_to=[],
-                load_best_model_at_end=True,
-            )
+            training_args =transformers.TrainingArguments(
+            seed=args.seed,
+            per_device_train_batch_size=args.per_device_batch_size,
+            per_device_eval_batch_size=args.per_device_batch_size,
+            gradient_accumulation_steps=args.gradient_accumulation_steps,
+            warmup_ratio=args.warmup_ratio,
+            num_train_epochs=args.epochs,
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+            lr_scheduler_type=args.lr_scheduler_type,
+            # fp16=args.fp16,
+            # bf16=args.bf16,
+            logging_steps=args.logging_step,
+            optim=args.optim,
+            # gradient_checkpointing=gradient_checkpointing,
+            evaluation_strategy=args.save_and_eval_strategy,
+            save_strategy=args.save_and_eval_strategy,
+            eval_steps=args.save_and_eval_steps,
+            save_steps=args.save_and_eval_steps,
+            output_dir=args.output_dir,
+            save_total_limit=2,
+            load_best_model_at_end=True,
+            # deepspeed=args.deepspeed,
+            ddp_find_unused_parameters=False if ddp else None,
+            report_to=[],
+            eval_delay= 1 if args.save_and_eval_strategy=="epoch" else 2000,
+        )
             from sdpotrainer import DPOTrainer
             trainer = DPOTrainer(
                 model,
@@ -317,11 +322,11 @@ def train(args):
             ppo_trainer.save_pretrained(save_directory=save_dir)
     elif args.rl_type in ['sprec','ipa']:
         if 'new' in args.index_file:
-            train_json_file = f"/root/LETTER/data/{args.dataset}/dpo/new-train0.json"
-            valid_json_file = f"/root/LETTER/data/{args.dataset}/dpo/new-valid0.json"
+            train_json_file = f"/root/LETTER/data/{args.dataset}/dpo/new-train1.json"
+            valid_json_file = f"/root/LETTER/data/{args.dataset}/dpo/new-valid1.json"
         else:
-            train_json_file = f"/root/LETTER/data/{args.dataset}/dpo/train0.json"
-            valid_json_file = f"/root/LETTER/data/{args.dataset}/dpo/valid0.json"
+            train_json_file = f"/root/LETTER/data/{args.dataset}/dpo/train1.json"
+            valid_json_file = f"/root/LETTER/data/{args.dataset}/dpo/valid1.json"
         from datasets import load_dataset
         train_dataset = load_dataset("json", data_files=train_json_file)
         train_data = train_dataset["train"]

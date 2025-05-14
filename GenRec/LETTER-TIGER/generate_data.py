@@ -126,11 +126,13 @@ def main(args):
     if 'new' in args.index_file:
         train_json_file = f"/root/LETTER/data/{args.dataset}/dpo/new-train0.json"
         valid_json_file = f"/root/LETTER/data/{args.dataset}/dpo/new-valid0.json"
-        tmp_dir = f"/root/LETTER/data/{args.dataset}/dpo/new-temp.json"
+        train_res_file = f"/root/LETTER/data/{args.dataset}/dpo/new-train1.json"
+        valid_res_file = f"/root/LETTER/data/{args.dataset}/dpo/new-valid1.json"
     else:
         train_json_file = f"/root/LETTER/data/{args.dataset}/dpo/train0.json"
         valid_json_file = f"/root/LETTER/data/{args.dataset}/dpo/valid0.json"
-        tmp_dir = f"/root/LETTER/data/{args.dataset}/dpo/temp.json"
+        train_res_file = f"/root/LETTER/data/{args.dataset}/dpo/train1.json"
+        valid_res_file = f"/root/LETTER/data/{args.dataset}/dpo/valid1.json"
     # with open(train_json_file, 'r') as f:
     #     train_data = json.load(f)
     # with open(valid_json_file, 'r') as f:
@@ -162,7 +164,7 @@ def main(args):
                              shuffle=True, num_workers=4, pin_memory=True)
         prog_iter = tqdm(data_loader, leave=False, desc='Generating')
         with torch.no_grad():
-            new_data={key:[] for key in data[0].keys()}
+            new_data={'prompt':[], 'chosen':[], 'rejected':[]}
             for batch in prog_iter:
                 inputs = tokenizer(batch['prompt'], 
                     return_tensors="pt",
@@ -197,19 +199,17 @@ def main(args):
                 batch['rejected'] = new_rej
                 for key in new_data.keys():
                     new_data[key]+=batch[key]
-            with open(tmp_dir, "w") as f:
-                json.dump(new_data, f)  
             return Dataset.from_dict(new_data)
     
     dpo_train_data=create_new_data(train_data)
     dpo_valid_data=create_new_data(val_data)
 
-    with open(train_json_file, 'w') as f:
+    with open(train_res_file, 'w') as f:
         for item in dpo_train_data:
             json.dump(item, f)  
             f.write('\n')  
 
-    with open(valid_json_file, 'w') as f:
+    with open(valid_res_file, 'w') as f:
         for item in dpo_valid_data:
             json.dump(item, f)  
             f.write('\n')
