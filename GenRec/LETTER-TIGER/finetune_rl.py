@@ -215,15 +215,14 @@ def train(args):
             )       
             from sdpotrainer import DPOTrainer
             trainer =  DPOTrainer(
-                base_model,
+                model,
                 reference_model,
                 args=training_args,
-                beta=beta,
+                beta=0.1,
                 train_dataset=train_data,
-                eval_dataset=val_data,
+                eval_dataset=valid_data,
                 tokenizer=tokenizer,
-                max_prompt_length=cutoff_len,
-                max_length=cutoff_len,
+                max_prompt_length=1024,
             )
 
         elif args.rl_type=='grpo':
@@ -403,7 +402,7 @@ def train(args):
             load_best_model_at_end=True,
         )
 
-        trainer = DPOTrainer(
+        trainer = trl.DPOTrainer(
                 model,
                 reference_model,
                 args=training_args,
