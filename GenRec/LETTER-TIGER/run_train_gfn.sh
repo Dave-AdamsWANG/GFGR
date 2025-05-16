@@ -8,12 +8,20 @@ DATA_PATH=/root/LETTER/data
 # weight=0.001
 # OUTPUT_DIR=/root/autodl-tmp/ckpt/$DATASET/gfn/${neg_num}/${weight}
 # seed_list=(43 44)
+<<<<<<< HEAD
     # --collab_reward \    --pretrained --reward_m \
+=======
+    # --collab_reward \    --pretrained
+>>>>>>> refs/remotes/origin/new-main
 
 # .index.epoch10000.alpha0-beta0.json "Beauty"
 # neg_num_list=(1 3 5)
 # weight_list=(1.0 0.1 0.01 0.001)
+<<<<<<< HEAD
 neg_num_list=(1)
+=======
+neg_num_list=(5)
+>>>>>>> refs/remotes/origin/new-main
 weight_list=(0.02)
 data_list=("Beauty")
 for DATASET in ${data_list[@]}
@@ -40,11 +48,19 @@ do
     --collab_model_path /root/GFGR/SeqRec/saved/$DATASET/bert4rec/pytorch_model.bin \
     --collab_reward \
     --token_reward \
+<<<<<<< HEAD
+=======
+    --reward_m \
+>>>>>>> refs/remotes/origin/new-main
     --reward_label_align \
     --collab_align \
     --reward_weigted_loss \
     --pretrained \
+<<<<<<< HEAD
     --align_weight 1.0 \
+=======
+    --align_weight 0.01 \
+>>>>>>> refs/remotes/origin/new-main
 
 
     python test.py \
