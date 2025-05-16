@@ -287,7 +287,7 @@ class LETTER(T5ForConditionalGeneration):
 
     def gfn_loss(self,input_ids,attention_mask,labels,origin_inters,positions,origin_item):
         t0 = time.time()
-        actions, reward = self.in_batch_negative_sampling_new(labels,origin_inters,positions,origin_item,self.gfn_neg_num+1) # B,N,L; B,N
+        actions, reward, weight = self.in_batch_negative_sampling_new(labels,origin_inters,positions,origin_item,self.gfn_neg_num+1) # B,N,L; B,N
         t1 = time.time()
         prob_F, hd = self.forward_prob(input_ids,attention_mask,actions) # B*N,L
         t2 = time.time()
@@ -298,11 +298,15 @@ class LETTER(T5ForConditionalGeneration):
             loss_tb = (torch.log(self.gfn_b_z) + torch.log(flow_pred[:,0]+self.gfn_b_p)+torch.log(prob_F+self.gfn_b_f).sum(-1) -torch.log(reward.reshape(-1,1)+self.gfn_b_r))**2
             t4 = time.time()
             # print(t4-t3,t3-t2,t2-t1,t1-t0)
+            if self.reward_weigted_loss:
+                loss_tb=(weight)*loss_tb
             return loss_tb.mean()+self.align_weight*self.align_loss#,loss_tb,torch.log(self.gfn_b_z),torch.log(flow_pred[:,0]),torch.log(prob_F+self.gfn_b_f).sum(-1),torch.log(reward.reshape(-1,1)+self.gfn_b_r)
         elif self.gfn_type=='db':
             K = prob_F.shape[-1]
             loss_db = ((torch.log(self.gfn_b_z/K) + torch.log(flow_pred[:,:K-1]+self.gfn_b_p)-torch.log(flow_pred[:,1:]+self.gfn_b_p)+torch.log(prob_F[:,:K-1]+self.gfn_b_f))**2/K).sum(-1) + \
                         (torch.log(self.gfn_b_z/K) + torch.log(flow_pred[:,K-1]+self.gfn_b_p)-torch.log(reward.reshape(-1,1)+self.gfn_b_r)+torch.log(prob_F[:,-1]+self.gfn_b_f))**2/K
+            if self.reward_weigted_loss:
+                loss_db=(weight)*loss_db
             return loss_db.mean()+self.align_weight*self.align_loss
         else:
             raise NotImplementedError
@@ -364,6 +368,7 @@ class LETTER(T5ForConditionalGeneration):
             partial_match = torch.cat([torch.ones([B,1], device=labels.device)*(L - 1),partial_match],-1)
             # reward *= torch.exp(partial_match*1.0)#+self.gfn_b_r
             reward= torch.cat([reward,partial_match.unsqueeze(-1)],-1)
+        weight = F.softmax(1/(reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2,dim=0)*B
         if self.reward_m:
             label_emb=self.label_emb(reward[:,:,0].long())
             collab_emb = self.collab_emb(reward[:,:,1].unsqueeze(-1)) # emb, bucket number
@@ -378,20 +383,16 @@ class LETTER(T5ForConditionalGeneration):
             if self.collab_align:
                 self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,1].reshape(-1,1))
             if self.reward_weigted_loss:
-                if self.reverse_weight:
-                    weight = F.softmax(1/(reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2,dim=0)*B
-                else:
-                    weight = F.softmax((reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2,dim=0)*B
                 self.align_loss=((weight)*self.align_loss).mean()
             if isinstance(self.align_loss, torch.Tensor):
                 self.align_loss=self.align_loss.mean()
             if self.reward_res:
                 reward_learn=reward_learn+reward[:,:,0].unsqueeze(-1)
-            return actions, reward_learn
+            return actions, reward_learn, weight
         else:
             reward=reward.sum(-1)
             self.align_loss=0
-            return actions, reward
+            return actions, reward, weight
 
     def _create_collab_model(self):
         checkpoint = torch.load(self.collab_model_path)['state_dict']
