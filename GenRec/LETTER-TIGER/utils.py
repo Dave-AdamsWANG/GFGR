@@ -33,7 +33,7 @@ def parse_rl_args(parser):
     parser.add_argument("--rl_ckpt_path", type=str,
                         default="./ckpt",
                         help="The checkpoint path")
-    parser.add_argument("--rl_neg_num",type=int,default=1)
+    parser.add_argument("--rl_neg_num",type=int,default=3)
     parser.add_argument("--rl_type", type=str, default="dpo",
                         help="RL type, PPO or DPO or GRPO")
     return parser

@@ -315,7 +315,7 @@ class DPOTrainer(Trainer):
         """
         concatenated_batch = self.concatenated_inputs(batch)
         # print(concatenated_batch["concatenated_input_ids"].shape)
-        label_len = (concatenated_batch["concatenated_labels"]==self.label_pad_token_id).long()
+        label_len = (concatenated_batch["concatenated_labels"]==self.label_pad_token_id).long().sum(-1)[0]
         all_logits = model(
             input_ids=concatenated_batch["concatenated_input_ids"][:,:label_len], attention_mask=concatenated_batch["concatenated_attention_mask"][:,:label_len],
             labels=concatenated_batch["concatenated_input_ids"][:,label_len:],cal_loss=False
@@ -557,7 +557,6 @@ class DPODataCollatorWithPadding:
         prompt_tokens = self.tokenizer(prompt, add_special_tokens=False)
         rejected_tokens = {}
         for key in rejected:
-            print(rejected[key])
             rejected_tokens[key] = self.tokenizer(rejected[key], add_special_tokens=False)
         
         assert self.tokenizer.eos_token_id not in prompt_tokens["input_ids"], f"Prompt contains EOS token: {prompt}"
