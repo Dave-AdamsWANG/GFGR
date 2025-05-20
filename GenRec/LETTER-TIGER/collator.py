@@ -68,6 +68,9 @@ class TestCollator(object):
             truncation=True,
             return_attention_mask=True,
         )
+        inputs['origin_item'] = torch.tensor([d["origin_item"] for d in batch]).to(inputs['input_ids'].device)
+        inputs['origin_inters']=torch.tensor([d["origin_inters"] for d in batch]).to(inputs['input_ids'].device)
+        inputs['positions'] = torch.tensor([d["positions"] for d in batch]).to(inputs['input_ids'].device)
 
         return (inputs, targets)
 
