@@ -263,19 +263,19 @@ class LETTER(T5ForConditionalGeneration):
         self.reverse_weight=True
         if args.dataset=='Yelp':
             self.reverse_weight=False
-        if self.collab_reward: 
-            self.collab_model_name=args.collab_model_name
-            self.collab_model_path=args.collab_model_path
-            self._create_collab_model()
-        else: 
-            self.collab_model=None
-        if self.reward_m:
-            self.label_emb=nn.Embedding(2,8).to(self.device)
-            self.collab_emb=Autodis(8,10).to(self.device) # emb, bucket number
-            self.token_emb=nn.Embedding(6,8).to(self.device)
-            self.reward_model=nn.Sequential(nn.Linear(3*8, 1, bias=False),nn.Sigmoid()).to(self.device)
-            self.reward_emb_norm=nn.BatchNorm1d(num_features=3*8)
-            self.reward_label_align_loss=nn.KLDivLoss(reduction='none')
+        # if self.collab_reward: 
+        self.collab_model_name=args.collab_model_name
+        self.collab_model_path=args.collab_model_path
+        self._create_collab_model()
+        # else: 
+            # self.collab_model=None
+        # if self.reward_m:
+        #     self.label_emb=nn.Embedding(2,8).to(self.device)
+        #     self.collab_emb=Autodis(8,10).to(self.device) # emb, bucket number
+        #     self.token_emb=nn.Embedding(6,8).to(self.device)
+        #     self.reward_model=nn.Sequential(nn.Linear(3*8, 1, bias=False),nn.Sigmoid()).to(self.device)
+        #     self.reward_emb_norm=nn.BatchNorm1d(num_features=3*8)
+        #     self.reward_label_align_loss=nn.KLDivLoss(reduction='none')
         
 
 
@@ -340,59 +340,63 @@ class LETTER(T5ForConditionalGeneration):
         all_indices = torch.arange(B, device=labels.device).repeat(B,1)
         mask = ~torch.eye(B, dtype=torch.bool, device=labels.device)
         other_indices_matrix = all_indices[mask].reshape(B, B - 1)
-        negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1]
-        if self.collab_reward:
-            collab_pred = self.collab_model.predict(origin_inters, origin_item, positions).sigmoid()
-            other_collab_pred = collab_pred.gather(1,other_indices_matrix)
-            if torch.rand(1).item() < self.gfn_epsilon:
-                negative_indices_matrix = torch.argsort(other_collab_pred, dim=-1)[:, :N - 1]
-            else:
-                negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1]
-                if self.gfn_epsilon< 0.9:
-                    self.gfn_epsilon += 0.001
-                    if self.gfn_epsilon>0.89:
-                        print(self.gfn_epsilon)
+        negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1] # 是否用Adaptive
+        collab_pred = self.collab_model.predict(origin_inters, origin_item, positions).sigmoid()
+        other_collab_pred = collab_pred.gather(1,other_indices_matrix)
+        if torch.rand(1).item() < self.gfn_epsilon:
+            negative_indices_matrix = torch.argsort(other_collab_pred, dim=-1)[:, :N - 1]
+        else:
+            negative_indices_matrix = torch.argsort(torch.randn([B, B - 1], device=labels.device), dim=-1)[:, :N - 1]
+            if self.gfn_epsilon< 0.9:
+                self.gfn_epsilon += 0.001
+                if self.gfn_epsilon>0.89:
+                    print(self.gfn_epsilon)
         negative_samples = labels[other_indices_matrix.gather(1, negative_indices_matrix)]
         actions[:, 1:, :] = negative_samples
         reward = torch.tensor([1] + [0] * (N - 1), device=labels.device, dtype=torch.float).unsqueeze(0).repeat_interleave(repeats=B, dim=0)#+self.gfn_b_r
         # B, 1
-        if self.collab_reward:
-            self_indices = torch.arange(B, device=labels.device).unsqueeze(1)
-            selected_indices = torch.cat([self_indices, other_indices_matrix.gather(1, negative_indices_matrix)], dim=1)
-            # reward *= torch.exp(collab_pred.gather(1, selected_indices)*1.0)#+self.gfn_b_r
-            reward = torch.cat([reward.unsqueeze(-1),collab_pred.gather(1, selected_indices).unsqueeze(-1)],-1)
-        if self.token_reward:
-            # partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) / (L - 1)
-            # partial_match = torch.cat([torch.ones_like(partial_match),partial_match],-1)
-            partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) #/ (L - 1)
-            partial_match = torch.cat([torch.ones([B,1], device=labels.device)*(L - 1),partial_match],-1)
-            # reward *= torch.exp(partial_match*1.0)#+self.gfn_b_r
-            reward= torch.cat([reward,partial_match.unsqueeze(-1)],-1)
+        # if self.collab_reward:
+        self_indices = torch.arange(B, device=labels.device).unsqueeze(1)
+        selected_indices = torch.cat([self_indices, other_indices_matrix.gather(1, negative_indices_matrix)], dim=1)
+        # reward *= torch.exp(collab_pred.gather(1, selected_indices)*1.0)#+self.gfn_b_r
+        reward = torch.cat([reward.unsqueeze(-1),collab_pred.gather(1, selected_indices).unsqueeze(-1)],-1)
+        # if self.token_reward:
+        # partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) / (L - 1)
+        # partial_match = torch.cat([torch.ones_like(partial_match),partial_match],-1)
+        partial_match = (negative_samples[:, :, :-1] == labels.unsqueeze(1)[:, :, :-1]).sum(dim=-1) #/ (L - 1)
+        partial_match = torch.cat([torch.ones([B,1], device=labels.device)*(L - 1),partial_match],-1)
+        # reward *= torch.exp(partial_match*1.0)#+self.gfn_b_r
+        reward= torch.cat([reward,partial_match.unsqueeze(-1)],-1)
         weight = F.softmax(1/(reward[:,:,1].reshape(-1,1)-reward[:,:,0].reshape(-1,1))**2,dim=0)*B
-        if self.reward_m:
-            label_emb=self.label_emb(reward[:,:,0].long())
-            collab_emb = self.collab_emb(reward[:,:,1].unsqueeze(-1)) # emb, bucket number
-            token_emb=self.token_emb(reward[:,:,2].long())
-            reward_emb = self.reward_emb_norm(torch.cat([label_emb,collab_emb,token_emb],-1).transpose(1,2)).transpose(1,2)
-            reward_learn=self.reward_model(reward_emb) # B,N,1
-            # print(torch.cat([label_emb,collab_emb,token_emb],-1)[0])
-            # print(reward_learn[0])
-            self.align_loss=0
-            if self.reward_label_align:
-                self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,0].reshape(-1,1)) # N,1
-            if self.collab_align:
-                self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,1].reshape(-1,1))
-            if self.reward_weigted_loss:
-                self.align_loss=((weight)*self.align_loss).mean()
-            if isinstance(self.align_loss, torch.Tensor):
-                self.align_loss=self.align_loss.mean()
-            if self.reward_res:
-                reward_learn=reward_learn+reward[:,:,0].unsqueeze(-1)
-            return actions, reward_learn, weight
-        else:
-            reward=reward.sum(-1)
-            self.align_loss=0
-            return actions, reward, weight
+        # if self.reward_m:
+        #     label_emb=self.label_emb(reward[:,:,0].long())
+        #     collab_emb = self.collab_emb(reward[:,:,1].unsqueeze(-1)) # emb, bucket number
+        #     token_emb=self.token_emb(reward[:,:,2].long())
+        #     reward_emb = self.reward_emb_norm(torch.cat([label_emb,collab_emb,token_emb],-1).transpose(1,2)).transpose(1,2)
+        #     reward_learn=self.reward_model(reward_emb) # B,N,1
+        #     # print(torch.cat([label_emb,collab_emb,token_emb],-1)[0])
+        #     # print(reward_learn[0])
+        #     self.align_loss=0
+        #     if self.reward_label_align:
+        #         self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,0].reshape(-1,1)) # N,1
+        #     if self.collab_align:
+        #         self.align_loss+=self.reward_label_align_loss(reward_learn.reshape(-1,1),reward[:,:,1].reshape(-1,1))
+        #     if self.reward_weigted_loss:
+        #         self.align_loss=((weight)*self.align_loss).mean()
+        #     if isinstance(self.align_loss, torch.Tensor):
+        #         self.align_loss=self.align_loss.mean()
+        #     if self.reward_res:
+        #         reward_learn=reward_learn+reward[:,:,0].unsqueeze(-1)
+        #     return actions, reward_learn, weight
+        # else:
+        final_reward=reward[:,:,0] # aug_reward 
+        if self.collab_reward:
+            final_reward+=reward[:,:,1]
+        if self.token_reward:
+            final_reward+=reward[:,:,2]
+        reward=reward.sum(-1)
+        self.align_loss=0
+        return actions, reward, weight
 
     def _create_collab_model(self):
         checkpoint = torch.load(self.collab_model_path)['state_dict']
