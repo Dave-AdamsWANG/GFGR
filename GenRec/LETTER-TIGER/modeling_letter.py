@@ -404,6 +404,7 @@ class LETTER(T5ForConditionalGeneration):
         collab_model_args = SimpleArgs(    
             hidden_size=32,
             num_heads=1,
+            num_layers=1,
             trm_num=2,
             dropout_rate=0.5, 
             max_len=20,)
