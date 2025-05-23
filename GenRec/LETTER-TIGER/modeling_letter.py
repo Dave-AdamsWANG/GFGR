@@ -394,9 +394,9 @@ class LETTER(T5ForConditionalGeneration):
             final_reward+=reward[:,:,1]
         if self.token_reward:
             final_reward+=reward[:,:,2]
-        reward=reward.sum(-1)
+        # reward=reward.sum(-1)
         self.align_loss=0
-        return actions, reward, weight
+        return actions, final_reward, weight
 
     def _create_collab_model(self):
         checkpoint = torch.load(self.collab_model_path)['state_dict']
